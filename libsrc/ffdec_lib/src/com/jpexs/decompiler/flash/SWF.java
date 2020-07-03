@@ -193,6 +193,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -1036,7 +1037,7 @@ public final class SWF implements SWFContainerItem, Timelined {
             }
             os.write(data);
         } else if (compression == SWFCompression.ZLIB) {
-            DeflaterOutputStream dos = new DeflaterOutputStream(os);
+            DeflaterOutputStream dos = new DeflaterOutputStream(os, new Deflater(Deflater.BEST_COMPRESSION), true);
             try {
                 Helper.copyStream(is, dos);
             } finally {
