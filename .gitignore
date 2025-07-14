@@ -9,6 +9,7 @@
 *.recompiled.swf
 run_test_*.swf
 Thumbs.db
+.idea
 /build/
 /reports/
 /installer.cfg

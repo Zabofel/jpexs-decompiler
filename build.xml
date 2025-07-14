@@ -437,7 +437,7 @@
             <arg file="${exe.config}" />
         </exec>
     </target>   
-    <target name="exe" depends="-set-gui-type,-exe-linux,-exe-windows">
+    <target name="exe" depends="-set-gui-type">
         
     </target>
     
@@ -468,7 +468,7 @@
 
     </target>
 
-    <target name="release" depends="library,archive,deb,osx-app-archive,installer,osx-app-installer,locales">
+    <target name="release" depends="library,archive,deb,osx-app-archive,locales">
 
     </target>
          
