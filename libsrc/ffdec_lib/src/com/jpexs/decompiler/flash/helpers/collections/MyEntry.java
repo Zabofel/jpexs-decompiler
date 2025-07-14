@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
+ * Entry implementation.
  *
  * @param <K> Key
  * @param <V> Value
@@ -32,6 +33,12 @@ public class MyEntry<K, V> implements Entry<K, V>, Serializable {
 
     private V value;
 
+    /**
+     * Constructor.
+     *
+     * @param key Key
+     * @param value Value
+     */
     public MyEntry(K key, V value) {
         this.key = key;
         this.value = value;

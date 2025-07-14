@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,6 @@
 package com.jpexs.decompiler.flash.gui;
 
 /**
- *
  * @author JPEXS
  */
 public enum TreeNodeType {
@@ -31,9 +30,20 @@ public enum TreeNodeType {
     MORPH_SHAPE,
     SPRITE,
     BUTTON,
+    BUTTON_RECORD,
     AS,
+    AS_CLASS,
+    AS_INTERFACE,
+    AS_FRAME,
+    AS_FUNCTION,
+    AS_VAR,
+    AS_CONST,
+    AS_BUTTON,
+    AS_CLIP,
+    AS_INIT,
     PACKAGE,
     FRAME,
+    SCENE,
     SHOW_FRAME,
     MOVIE,
     SOUND,
@@ -50,5 +60,10 @@ public enum TreeNodeType {
     FILE_ATTRIBUTES,
     METADATA,
     PLACE_OBJECT,
-    REMOVE_OBJECT
+    REMOVE_OBJECT,
+    SCALING_GRID,
+    END,
+    ERROR,
+    ABC,
+    COOKIE
 }

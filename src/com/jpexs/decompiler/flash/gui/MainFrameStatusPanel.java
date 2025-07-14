@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@ import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.JButton;
@@ -32,7 +34,6 @@ import javax.swing.JPanel;
 import javax.swing.border.BevelBorder;
 
 /**
- *
  * @author JPEXS
  */
 public class MainFrameStatusPanel extends JPanel {
@@ -55,10 +56,18 @@ public class MainFrameStatusPanel extends JPanel {
 
     private CancellableWorker currentWorker;
 
+    private String oldStatus = "";
+
+    private boolean statusHidden = false;
+
+    public boolean isStatusHidden() {
+        return statusHidden;
+    }
+
     public MainFrameStatusPanel(MainPanel mainPanel) {
         this.mainPanel = mainPanel;
         createStatusPanel();
-    }
+    }        
 
     private void createStatusPanel() {
         JPanel statusLeftPanel = new JPanel();
@@ -70,10 +79,11 @@ public class MainFrameStatusPanel extends JPanel {
         cancelButton.setBorderPainted(false);
         cancelButton.setOpaque(false);
         cancelButton.addActionListener((ActionEvent e) -> {
-            if (currentWorker != null) {
-                currentWorker.cancel(true);
+            CancellableWorker w = currentWorker;
+            if (w != null) {           
+                w.cancel(true);
             }
-        });
+        });                               
         statusLeftPanel.add(loadingPanel);
         statusLeftPanel.add(cancelButton);
         statusLeftPanel.add(statusLabel);
@@ -107,6 +117,28 @@ public class MainFrameStatusPanel extends JPanel {
 
     public void setStatus(String s) {
         statusLabel.setText(s);
+        oldStatus = s;
+        statusHidden = false;
+    }
+
+    public CancellableWorker getCurrentWorker() {
+        return currentWorker;
+    }
+
+    public void setWorkStatusHidden(String s, CancellableWorker worker) {
+        currentWorker = worker;
+        cancelButton.setVisible(worker != null);
+        oldStatus = s;
+        statusHidden = true;
+    }
+
+    public void showOldStatus() {
+        if (oldStatus.isEmpty()) {
+            loadingPanel.setVisible(false);
+        } else {
+            loadingPanel.setVisible(true);
+        }
+        statusLabel.setText(oldStatus);
     }
 
     public void setWorkStatus(String s, CancellableWorker worker) {
@@ -118,6 +150,8 @@ public class MainFrameStatusPanel extends JPanel {
         statusLabel.setText(s);
         currentWorker = worker;
         cancelButton.setVisible(worker != null);
+        oldStatus = s;
+        statusHidden = false;
     }
 
     public void setErrorState(ErrorState errorState) {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,35 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.dynamictext;
 
 import com.jpexs.decompiler.flash.types.GLYPHENTRY;
 
 /**
+ * Glyph character.
  *
  * @author JPEXS
  */
 public class GlyphCharacter {
 
+    /**
+     * Glyph entry
+     */
     public GLYPHENTRY glyphEntry;
 
+    /**
+     * Character
+     */
     public char character;
 
+    /**
+     * Constructor.
+     *
+     * @param character Character
+     * @param glyphEntry Glyph entry
+     */
     public GlyphCharacter(char character, GLYPHENTRY glyphEntry) {
 
         this.character = character;

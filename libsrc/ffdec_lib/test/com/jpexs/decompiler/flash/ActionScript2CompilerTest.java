@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.action.Action;
@@ -25,6 +26,7 @@ import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.CompilationException;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -48,6 +50,8 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
         Configuration.simplifyExpressions.set(false);
         Configuration.decompile.set(true);
         Configuration.registerNameFormat.set("_loc%d_");
+        Configuration.resolveConstants.set(true);
+        Configuration.showAllAddresses.set(false);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
     }
 
@@ -56,9 +60,9 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
             SWF swf = new SWF();
             ASMSource asm = new DoActionTag(swf);
 
-            ActionScript2Parser par = new ActionScript2Parser(swf.version);
+            ActionScript2Parser par = new ActionScript2Parser(swf, asm);
             try {
-                asm.setActions(par.actionsFromString(sourceAsToCompile));
+                asm.setActions(par.actionsFromString(sourceAsToCompile, Utf8Helper.charsetName));
             } catch (ActionParseException | CompilationException ex) {
                 fail("Unable to parse: " + sourceAsToCompile + "/" + asm.toString(), ex);
             }
@@ -66,6 +70,7 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
             asm.setActionBytes(Action.actionsToBytes(asm.getActions(), true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
             asm.getASMSource(ScriptExportMode.PCODE, writer, null);
+            writer.finishHilights();
             String actualResult = normalizeLabels(writer.toString());
             actualResult = cleanPCode(actualResult);
             String expectedResult = cleanPCode(expectedPCode);
@@ -103,16 +108,17 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
                 + "			var v5 = a + 3;\n"
                 + "		}\n"
                 + "	}\n"
-                + "}", "ConstantPool \"v1\" \"a\"\n"
-                + "DefineFunction \"outfunc\" 0 {\n"
+                + "}", "ConstantPool \"v1\", \"a\"\n"
+                + "DefineFunction \"outfunc\", 0 {\n"
                 + "Push \"v1\"\n"
-                + "DefineFunction2 \"\" 0 3 false false true false true false true false false {\n"
-                + "Push \"a\" 1\n"
+                + "DefineFunction2 \"\", 0, 3, false, false, true, false, true, false, true, false, false {\n"
+                + "Push \"a\"\n"
+                + "Push 1\n"
                 + "DefineLocal\n" //critical
                 + "Push 2\n"
                 + "StoreRegister 1\n"
                 + "Pop\n"
-                + "DefineFunction2 \"\" 0 2 false false true false true false true false false {\n"
+                + "DefineFunction2 \"\", 0, 2, false, false, true, false, true, false, true, false, false {\n"
                 + "Push \"a\"\n"
                 + "GetVariable\n"
                 + "Push 3\n"
@@ -137,10 +143,10 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
                 + "			var v2 = a + 2;\n"
                 + "		}\n"
                 + "	}\n"
-                + "}", "ConstantPool \"g\" \"a\"\n"
-                + "DefineFunction \"outfunc\" 0 {\n"
+                + "}", "ConstantPool \"g\", \"a\"\n"
+                + "DefineFunction \"outfunc\", 0 {\n"
                 + "Push \"g\"\n"
-                + "DefineFunction2 \"\" 2 4 false false true false true false true false false 0 \"a\" 1 \"p2\" {\n"
+                + "DefineFunction2 \"\", 2, 4, false, false, true, false, true, false, true, false, false, 0, \"a\", 1, \"p2\" {\n"
                 + "Push \"a\"\n"
                 + "GetVariable\n" //critical
                 + "Push 1\n"
@@ -149,7 +155,7 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
                 + "Add2\n"
                 + "StoreRegister 2\n"
                 + "Pop\n"
-                + "DefineFunction2 \"\" 0 2 false false true false true false true false false {\n"
+                + "DefineFunction2 \"\", 0, 2, false, false, true, false, true, false, true, false, false {\n"
                 + "Push \"a\"\n"
                 + "GetVariable\n"
                 + "Push 2\n"
@@ -162,5 +168,12 @@ public class ActionScript2CompilerTest extends ActionScript2TestBase {
                 + "}\n"
                 + "DefineLocal\n"
                 + "}");
+    }
+
+    @Test
+    public void stopUndefined() {
+        testCompilation("trace(stop());", "Stop\n"
+                + "Push undefined, undefined\n"
+                + "Trace");
     }
 }

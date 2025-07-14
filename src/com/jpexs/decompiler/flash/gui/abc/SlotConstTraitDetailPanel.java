@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,25 +22,24 @@ import com.jpexs.decompiler.flash.abc.avm2.parser.pcode.ASM3Parser;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.AppStrings;
-import com.jpexs.decompiler.flash.gui.View;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
+import com.jpexs.decompiler.flash.gui.ViewMessages;
 import com.jpexs.decompiler.flash.gui.editor.LineMarkedEditorPane;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.Highlighting;
+import com.jpexs.decompiler.flash.helpers.hilight.HighlightingList;
 import com.jpexs.decompiler.flash.tags.Tag;
 import java.awt.BorderLayout;
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 
 /**
- *
  * @author JPEXS
  */
 public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
@@ -53,14 +52,14 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
 
     private boolean showWarning = false;
 
-    private List<Highlighting> specialHilights;
+    private HighlightingList specialHilights;
 
     private boolean ignoreCaret = false;
 
     public SlotConstTraitDetailPanel(final DecompiledEditorPane editor) {
         slotConstEditor = new LineMarkedEditorPane();
         setLayout(new BorderLayout());
-        add(new JScrollPane(slotConstEditor), BorderLayout.CENTER);
+        add(new FasterScrollPane(slotConstEditor), BorderLayout.CENTER);
         slotConstEditor.setFont(Configuration.getSourceFont());
         slotConstEditor.changeContentType("text/flasm3");
         slotConstEditor.addCaretListener(new CaretListener() {
@@ -101,7 +100,11 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
         this.trait = trait;
         HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), true);
         trait.convertTraitHeader(abc, writer);
+        if (Configuration.indentAs3PCode.get()) {
+            writer.unindent();
+        }
         writer.appendNoHilight("end ; trait");
+        writer.finishHilights();
         String s = writer.toString();
         specialHilights = writer.specialHilights;
         showWarning = trait.isConst() || isStatic;
@@ -110,12 +113,12 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
 
     @Override
     public boolean save() {
-        try {//(slotConstEditor.getText(), trait, abc)
+        try {
             if (!ASM3Parser.parseSlotConst(abc, new StringReader(slotConstEditor.getText()), abc.constants, trait)) {
                 return false;
             }
         } catch (AVM2ParseException ex) {
-            View.showMessageDialog(slotConstEditor, ex.text, AppStrings.translate("error.slotconst.typevalue"), JOptionPane.ERROR_MESSAGE);
+            ViewMessages.showMessageDialog(slotConstEditor, ex.text, AppStrings.translate("error.slotconst.typevalue"), JOptionPane.ERROR_MESSAGE);
             return false;
         } catch (IOException ex) {
             Logger.getLogger(SlotConstTraitDetailPanel.class.getName()).log(Level.SEVERE, null, ex);
@@ -124,15 +127,19 @@ public class SlotConstTraitDetailPanel extends JPanel implements TraitDetail {
 
         abc.refreshMultinameNamespaceSuffixes();
         ((Tag) abc.parentTag).setModified(true);
+        abc.fireChanged();
         return true;
     }
 
     @Override
     public void setEditMode(boolean val) {
         if (val && active) {
-            JOptionPane.showMessageDialog(null, AppStrings.translate("warning.initializers"), AppStrings.translate("message.warning"), JOptionPane.WARNING_MESSAGE);
+            ViewMessages.showMessageDialog(this, AppStrings.translate("warning.initializers"), AppStrings.translate("message.warning"), JOptionPane.WARNING_MESSAGE, Configuration.warningInitializers);
         }
         slotConstEditor.setEditable(val);
+        if (val) {
+            slotConstEditor.requestFocusInWindow();
+        }
     }
 
     private boolean active = false;

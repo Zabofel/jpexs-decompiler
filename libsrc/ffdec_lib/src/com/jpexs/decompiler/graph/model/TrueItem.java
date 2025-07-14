@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
@@ -27,13 +29,21 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * True value.
  *
  * @author JPEXS
  */
 public class TrueItem extends GraphTargetItem implements LogicalOpItem, SimpleValue {
 
-    public TrueItem(GraphSourceItem src, GraphSourceItem lineStartIns) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     */
+    public TrueItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY);
     }
 
     @Override
@@ -58,7 +68,7 @@ public class TrueItem extends GraphTargetItem implements LogicalOpItem, SimpleVa
 
     @Override
     public GraphTargetItem invert(GraphSourceItem neqSrc) {
-        return new FalseItem(getSrc(), getLineStartItem());
+        return new FalseItem(dialect, getSrc(), getLineStartItem());
     }
 
     @Override
@@ -74,5 +84,25 @@ public class TrueItem extends GraphTargetItem implements LogicalOpItem, SimpleVa
     @Override
     public Object getResult() {
         return Boolean.TRUE;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        return hash;
     }
 }

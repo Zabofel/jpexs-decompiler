@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.types;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -30,11 +31,15 @@ import com.jpexs.decompiler.graph.TypeItem;
 import java.util.List;
 
 /**
+ * convert_d instruction - Convert to number.
  *
  * @author JPEXS
  */
 public class ConvertDIns extends InstructionDefinition implements CoerceOrConvertTypeIns {
 
+    /**
+     * Constructor
+     */
     public ConvertDIns() {
         super(0x75, "convert_d", new int[]{}, true);
     }

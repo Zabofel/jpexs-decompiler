@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
 import com.jpexs.decompiler.flash.exporters.shape.BitmapExporter;
@@ -27,9 +29,12 @@ import com.jpexs.decompiler.flash.exporters.shape.SVGShapeExporter;
 import com.jpexs.decompiler.flash.helpers.LazyObject;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.ColorTransform;
+import com.jpexs.decompiler.flash.types.ILINESTYLE;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.SHAPEWITHSTYLE;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
+import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
+import com.jpexs.decompiler.flash.types.shaperecords.StyleChangeRecord;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Color;
@@ -39,28 +44,59 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.PathIterator;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Base class for shape tags.
  *
  * @author JPEXS
  */
 public abstract class ShapeTag extends DrawableTag implements LazyObject {
 
+    /**
+     * Shape ID
+     */
     @SWFType(BasicType.UI16)
     public int shapeId;
 
+    /**
+     * Shape bounds
+     */
     public RECT shapeBounds;
 
+    /**
+     * Shapes
+     */
     public SHAPEWITHSTYLE shapes;
 
+    /**
+     * Shape data
+     */
     protected ByteArrayRange shapeData;
 
     private final int markerSize = 10;
 
+    /**
+     * Winding rule - even-odd
+     */
+    public static final int WIND_EVEN_ODD = 0;
+
+    /**
+     * Winding rule - nonzero
+     */
+    public static final int WIND_NONZERO = 1;
+
+    /**
+     * Constructor.
+     * @param swf SWF
+     * @param id ID
+     * @param name Name
+     * @param data Data
+     */
     public ShapeTag(SWF swf, int id, String name, ByteArrayRange data) {
         super(swf, id, name, data);
     }
@@ -70,9 +106,24 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
         getShapes();
     }
 
+    /**
+     * Gets the winding rule.
+     * @return Winding rule
+     */
+    public abstract int getWindingRule();
+
+    /**
+     * Gets shape number.
+     * DefineShape = 1, DefineShape2 = 2, ...
+     * @return Shape number
+     */
     public abstract int getShapeNum();
 
-    public SHAPEWITHSTYLE getShapes() {
+    /**
+     * Gets shapes.
+     * @return Shapes
+     */
+    public synchronized SHAPEWITHSTYLE getShapes() {
         if (shapes == null && shapeData != null) {
             try {
                 SWFInputStream sis = new SWFInputStream(swf, shapeData.getArray(), 0, shapeData.getPos() + shapeData.getLength());
@@ -88,10 +139,10 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
         SHAPEWITHSTYLE shapes = getShapes();
         if (shapes != null) {
-            getShapes().getNeededCharacters(needed);
+            getShapes().getNeededCharacters(needed, swf);
         }
     }
 
@@ -124,20 +175,68 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     }
 
     @Override
+    public RECT getRectWithStrokes() {
+        int maxWidth = 0;
+        List<ILINESTYLE> ilineStyles = new ArrayList<>();
+        if (getShapeNum() == 4) {
+            for (ILINESTYLE ls : getShapes().lineStyles.lineStyles2) {
+                if (ls.getWidth() > maxWidth) {
+                    maxWidth = ls.getWidth();
+                }
+            }
+        } else {
+            for (ILINESTYLE ls : getShapes().lineStyles.lineStyles) {
+                if (ls.getWidth() > maxWidth) {
+                    maxWidth = ls.getWidth();
+                }
+            }
+        }
+
+        for (SHAPERECORD sr : getShapes().shapeRecords) {
+            if (sr instanceof StyleChangeRecord) {
+                StyleChangeRecord scr = (StyleChangeRecord) sr;
+                if (scr.stateNewStyles) {
+                    if (getShapeNum() == 4) {
+                        for (ILINESTYLE ls : scr.lineStyles.lineStyles2) {
+                            if (ls.getWidth() > maxWidth) {
+                                maxWidth = ls.getWidth();
+                            }
+                        }
+                    } else {
+                        for (ILINESTYLE ls : scr.lineStyles.lineStyles) {
+                            if (ls.getWidth() > maxWidth) {
+                                maxWidth = ls.getWidth();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        RECT r = new RECT(getRect());
+        r.Xmin -= maxWidth;
+        r.Ymin -= maxWidth;
+        r.Xmax += maxWidth;
+        r.Ymax += maxWidth;
+
+        return r;
+    }
+
+    @Override
     public int getUsedParameters() {
         return 0;
     }
 
     @Override
-    public Shape getOutline(int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked) {
-        return transformation.toTransform().createTransformedShape(getShapes().getOutline(swf, stroked));
+    public Shape getOutline(boolean fast, int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked, ExportRectangle viewRect, double unzoom) {
+        return transformation.toTransform().createTransformedShape(getShapes().getOutline(fast, getShapeNum(), swf, stroked));
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, ColorTransform colorTransform) {
-        BitmapExporter.export(swf, getShapes(), null, image, transformation, strokeTransformation, colorTransform);
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, ExportRectangle viewRectRaw, boolean scaleStrokes, int drawMode, int blendMode, boolean canUseSmoothing) {
+        BitmapExporter.export(getWindingRule(), getShapeNum(), getSwf(), getShapes(), null, image, unzoom, transformation, strokeTransformation, colorTransform, scaleStrokes, canUseSmoothing);
         if (Configuration._debugMode.get()) { // show control points
-            List<GeneralPath> paths = PathExporter.export(swf, getShapes());
+            List<GeneralPath> paths = PathExporter.export(getWindingRule(), getShapeNum(), swf, getShapes());
             double[] coords = new double[6];
             AffineTransform at = transformation.toTransform();
             at.preConcatenate(AffineTransform.getScaleInstance(1 / SWF.unitDivisor, 1 / SWF.unitDivisor));
@@ -178,14 +277,14 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     }
 
     @Override
-    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level) throws IOException {
-        SVGShapeExporter shapeExporter = new SVGShapeExporter(swf, getShapes(), getCharacterId(), exporter, null, colorTransform, 1);
+    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level, Matrix transformation, Matrix strokeTransformation) throws IOException {
+        SVGShapeExporter shapeExporter = new SVGShapeExporter(getWindingRule(), getShapeNum(), swf, getShapes(), getCharacterId(), exporter, null, colorTransform, 1, exporter.getZoom(), strokeTransformation);
         shapeExporter.export();
     }
 
     @Override
     public void toHtmlCanvas(StringBuilder result, double unitDivisor) {
-        CanvasShapeExporter cse = new CanvasShapeExporter(null, unitDivisor, swf, getShapes(), null, 0, 0);
+        CanvasShapeExporter cse = new CanvasShapeExporter(getWindingRule(), getShapeNum(), null, unitDivisor, swf, getShapes(), null, 0, 0);
         cse.export();
         result.append(cse.getShapeData());
     }
@@ -208,5 +307,13 @@ public abstract class ShapeTag extends DrawableTag implements LazyObject {
     @Override
     public void setCharacterId(int characterId) {
         this.shapeId = characterId;
+    }
+
+    /**
+     * Updates bounds.
+     */
+    public void updateBounds() {
+        shapes.clearCachedOutline();
+        shapeBounds = SHAPERECORD.getBounds(shapes.shapeRecords, shapes.lineStyles, getShapeNum(), false);
     }
 }

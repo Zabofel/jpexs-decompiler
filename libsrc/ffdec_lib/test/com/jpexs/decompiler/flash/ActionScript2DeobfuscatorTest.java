@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.action.Action;
@@ -26,10 +27,12 @@ import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.graph.CompilationException;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import static org.testng.Assert.assertTrue;
@@ -52,12 +55,15 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
     }
 
     private String recompile(String str) throws ActionParseException, IOException, CompilationException, InterruptedException, TimeoutException {
-        ActionScript2Parser par = new ActionScript2Parser(SWF.DEFAULT_VERSION);
+        SWF swf = new SWF();
+        swf.version = SWF.DEFAULT_VERSION;
+        ActionScript2Parser par = new ActionScript2Parser(swf, new DoActionTag(swf));
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-        List<Action> actions = par.actionsFromString(str);
+        List<Action> actions = par.actionsFromString(str, Utf8Helper.charsetName);
         byte[] hex = Action.actionsToBytes(actions, true, SWF.DEFAULT_VERSION);
         ActionList list = ActionListReader.readActionListTimeout(new ArrayList<>(), new SWFInputStream(swf, hex), SWF.DEFAULT_VERSION, 0, hex.length, "", 1);
-        Action.actionsToSource(null, list, "", writer);
+        Action.actionsToSource(new HashMap<>(), null, list, "", writer, Utf8Helper.charsetName);
+        writer.finishHilights();
         return writer.toString();
     }
 
@@ -131,7 +137,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
             fail("if false OnTrue not removed");
         }
         if (res.contains("var ")) {
-            fail("variables for obsucation not removed");
+            fail("variables for obfuscation not removed");
         }
         if (res.contains("if")) {
             fail("if clauses not removed");
@@ -170,7 +176,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
     }
 
     @Test
-    public void testEvailExpressionAfterWhile() throws Exception {
+    public void testEvalExpressionAfterWhile() throws Exception {
         String res = recompile("var a = 5;"
                 + "while(true){"
                 + "if(a==73){"
@@ -212,7 +218,7 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
             fail("unreachable if onTrue 3 not removed");
         }
         if (!res.contains("\"OK\"")) {
-            fail("reachable of onTrue removed");
+            fail("reachable if onTrue removed");
         }
     }
 
@@ -246,12 +252,13 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Jump loc0084\n"
                 + "loc0084:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(actualResult.contains("case \"c\":"));
@@ -271,12 +278,13 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Trace\n"
                 + "loc2:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(!actualResult.contains("FAIL"));
@@ -298,12 +306,13 @@ public class ActionScript2DeobfuscatorTest extends ActionScript2TestBase {
                 + "Trace\n"
                 + "loc2:";
         try {
-            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false);
+            List<Action> actions = ASMParser.parse(0, true, actionsString, swf.version, false, swf.getCharset());
 
             DoActionTag doa = getFirstActionTag();
             doa.setActionBytes(Action.actionsToBytes(actions, true, swf.version));
             HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(), doa, doa.getActions(), "", writer, swf.getCharset());
+            writer.finishHilights();
             String actualResult = writer.toString();
 
             assertTrue(!actualResult.contains("FAIL"));

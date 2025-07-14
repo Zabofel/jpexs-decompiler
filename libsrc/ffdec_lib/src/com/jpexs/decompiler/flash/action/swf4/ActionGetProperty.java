@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionScriptObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.GetPropertyActionItem;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
@@ -27,19 +28,28 @@ import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
+ * GetProperty action - Gets a property of an object.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionGetProperty extends Action {
 
+    /**
+     * Constructor
+     */
     public ActionGetProperty() {
-        super(0x22, 0);
+        super(0x22, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -65,7 +75,7 @@ public class ActionGetProperty extends Action {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem index = stack.pop();
         GraphTargetItem target = stack.pop();
         int indexInt = 0;
@@ -77,7 +87,15 @@ public class ActionGetProperty extends Action {
                 indexInt = (int) Math.round((Double) value);
             } else if (value instanceof Float) {
                 indexInt = (int) Math.round((Float) value);
+            } else if (((DirectValueActionItem) index).isString()) {
+                try {
+                    indexInt = Integer.parseInt(((DirectValueActionItem) index).toString());
+                } catch (NumberFormatException nfe) {
+                    Logger.getLogger(ActionGetProperty.class.getName()).log(Level.SEVERE, "Invalid property index: {0}", index.toString());
+                }
             }
+        } else {
+            Logger.getLogger(ActionGetProperty.class.getName()).log(Level.SEVERE, "Invalid property index: {0}", index.getClass().getSimpleName());
         }
         stack.push(new GetPropertyActionItem(this, lineStartAction, target, indexInt));
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -26,8 +27,10 @@ import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.JpegFixer;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,6 +40,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineBitsJPEG2 tag - Contains a JPEG image (optionally a PNG or GIF)
  *
  * @author JPEXS
  */
@@ -53,7 +57,7 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineBitsJPEG2Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -71,9 +75,9 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineBitsJPEG2Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -90,7 +94,7 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -124,8 +128,15 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
 
     @Override
     public InputStream getOriginalImageData() {
-        int errorLength = hasErrorHeader(imageData) ? 4 : 0;
-        return new ByteArrayInputStream(imageData.getArray(), imageData.getPos() + errorLength, imageData.getLength() - errorLength);
+        JpegFixer jpegFixer = new JpegFixer();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            jpegFixer.fixJpeg(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()), baos);
+        } catch (IOException ex) {
+            Logger.getLogger(DefineBitsJPEG2Tag.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        return new ByteArrayInputStream(baos.toByteArray());
     }
 
     @Override
@@ -143,7 +154,11 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
             Logger.getLogger(DefineBitsJPEG2Tag.class.getName()).log(Level.SEVERE, "Failed to get image", ex);
         }
 
-        return null;
+        SerializableImage img = new SerializableImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE);
+        Graphics g = img.getGraphics();
+        g.setColor(SWF.ERROR_COLOR);
+        g.fillRect(0, 0, 1, 1);
+        return img;
     }
 
     @Override
@@ -153,11 +168,11 @@ public class DefineBitsJPEG2Tag extends ImageTag implements AloneTag {
         }
 
         try {
-            return ImageHelper.getDimesion(getOriginalImageData());
+            return ImageHelper.getDimension(getOriginalImageData());
         } catch (IOException ex) {
             Logger.getLogger(DefineBitsJPEG2Tag.class.getName()).log(Level.SEVERE, "Failed to get image dimension", ex);
         }
 
-        return null;
+        return new Dimension(1, 1);
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
-import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.ecma.ObjectType;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -33,25 +34,48 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * This object.
  *
  * @author JPEXS
  */
 public class ThisAVM2Item extends AVM2Item {
 
+    /**
+     * Class name
+     */
     public DottedChain className;
 
+    /**
+     * Is basic object
+     */
     public boolean basicObject;
 
-    public Multiname classMultiname;
+    /**
+     * Show class name
+     */
+    public boolean showClassName;
 
-    public ThisAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Multiname classMultiname, DottedChain className, boolean basicObject) {
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param className Class name
+     * @param basicObject Is basic object
+     * @param showClassName Show class name
+     */
+    public ThisAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, DottedChain className, boolean basicObject, boolean showClassName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.className = className;
-        this.classMultiname = classMultiname;
         this.basicObject = basicObject;
+        this.showClassName = showClassName;
         getSrcData().localName = "this";
     }
 
+    /**
+     * Checks if this is a basic object.
+     * @return True if this is a basic object
+     */
     public boolean isBasicObject() {
         return basicObject;
     }
@@ -87,6 +111,14 @@ public class ThisAVM2Item extends AVM2Item {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) {
+        if (showClassName) {
+            if (className != null) {
+                if (localData.fullyQualifiedNames != null && localData.fullyQualifiedNames.contains(className)) {
+                    return writer.append(className.toPrintableString(true)).append(".this");
+                }
+                return writer.append(IdentifiersDeobfuscation.printIdentifier(true, className.getLast())).append(".this");
+            }
+        }
         return writer.append("this");
     }
 
@@ -98,11 +130,31 @@ public class ThisAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return new TypeItem(className);
     }
 
     @Override
     public boolean hasReturnValue() {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        return hash;
     }
 }

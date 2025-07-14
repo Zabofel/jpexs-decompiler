@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@ import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
 import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
-import com.jpexs.decompiler.flash.action.model.operations.Inverted;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetVariable;
 import com.jpexs.decompiler.flash.action.swf4.ActionIf;
 import com.jpexs.decompiler.flash.action.swf4.ActionJump;
@@ -34,6 +33,7 @@ import com.jpexs.decompiler.flash.action.swf4.ActionSetVariable;
 import com.jpexs.decompiler.flash.action.swf4.ConstantIndex;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionCallFunction;
+import com.jpexs.decompiler.flash.action.swf5.ActionCallMethod;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineFunction;
 import com.jpexs.decompiler.flash.action.swf5.ActionGetMember;
 import com.jpexs.decompiler.flash.action.swf5.ActionNewObject;
@@ -71,53 +71,75 @@ import com.jpexs.decompiler.graph.model.WhileItem;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.logging.Logger;
 
 /**
+ * ActionScript 1/2 bytecode generator.
  *
  * @author JPEXS
  */
 public class ActionSourceGenerator implements SourceGenerator {
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, FalseItem item) throws CompilationException {
-        return GraphTargetItem.toSourceMerge(localData, this, new ActionPush(Boolean.FALSE));
+    private final List<String> constantPool;
+
+    private final int swfVersion;
+
+    private final String charset;
+
+    private long uniqLast = 0;
+
+    /**
+     * Constructor.
+     *
+     * @param swfVersion SWF version
+     * @param constantPool Constant pool
+     * @param charset Charset
+     */
+    public ActionSourceGenerator(int swfVersion, List<String> constantPool, String charset) {
+        this.constantPool = constantPool;
+        this.swfVersion = swfVersion;
+        this.charset = charset;
     }
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, TrueItem item) throws CompilationException {
-        return GraphTargetItem.toSourceMerge(localData, this, new ActionPush(Boolean.TRUE));
+    /**
+     * Generates unique ID.
+     *
+     * @return Unique ID
+     */
+    public String uniqId() {
+        uniqLast++;
+        return "" + uniqLast;
     }
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, AndItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ret.addAll(generateToActionList(localData, item.leftSide));
-        ret.add(new ActionPushDuplicate());
-        ret.add(new ActionNot());
-        List<Action> andExpr = generateToActionList(localData, item.rightSide);
-        andExpr.add(0, new ActionPop());
-        int andExprLen = Action.actionsToBytes(andExpr, false, SWF.DEFAULT_VERSION).length;
-        ret.add(new ActionIf(andExprLen));
-        ret.addAll(andExpr);
-        return ret;
-
+    /**
+     * Gets charset.
+     *
+     * @return Charset
+     */
+    public String getCharset() {
+        return charset;
     }
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, OrItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ret.addAll(generateToActionList(localData, item.leftSide));
-        ret.add(new ActionPushDuplicate());
-        List<Action> orExpr = generateToActionList(localData, item.rightSide);
-        orExpr.add(0, new ActionPop());
-        int orExprLen = Action.actionsToBytes(orExpr, false, SWF.DEFAULT_VERSION).length;
-        ret.add(new ActionIf(orExprLen));
-        ret.addAll(orExpr);
-        return ret;
+    private List<Action> generateToActionList(SourceGeneratorLocalData localData, List<GraphTargetItem> commands) throws CompilationException {
+        return toActionList(generate(localData, commands));
     }
 
+    private List<Action> generateToActionList(SourceGeneratorLocalData localData, GraphTargetItem command) throws CompilationException {
+        return toActionList(command.toSource(localData, this));
+    }
+
+    /**
+     * Converts list of GraphSourceItem to list of Action.
+     *
+     * @param items List of GraphSourceItem
+     * @return List of Action
+     */
     public List<Action> toActionList(List<GraphSourceItem> items) {
+        items = groupPushes(items);
         List<Action> ret = new ArrayList<>();
         for (GraphSourceItem s : items) {
             if (s instanceof Action) {
@@ -125,6 +147,43 @@ public class ActionSourceGenerator implements SourceGenerator {
             }
         }
         return ret;
+    }
+
+    private List<GraphSourceItem> groupPushes(List<GraphSourceItem> items) {
+
+        //TODO: This should take in account important offsets (jumps)
+        //And not group Pushes over different parts of code
+        /*Like:
+           If locA
+             Push "A"
+             Push "B"
+           locA:
+           Push "C"
+        
+           Should not be grouped to Push "A","B","C"
+         */
+        return items;
+        //Commented out for now...
+        /*if (swfVersion <= 4) {
+            return items;
+        }
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ActionPush prevPush = null;
+        for (GraphSourceItem s : items) {            
+            if (s instanceof ActionPush) {
+                if (prevPush == null) {
+                    prevPush = (ActionPush) s;
+                    ret.add(prevPush);                    
+                } else {
+                    prevPush.values.addAll(((ActionPush) s).values);
+                    ((ActionPush) s).values.clear();
+                }
+            } else {
+                ret.add(s);
+                prevPush = null;
+            }                      
+        }
+        return ret;*/
     }
 
     private List<Action> nonempty(List<Action> list) {
@@ -136,8 +195,8 @@ public class ActionSourceGenerator implements SourceGenerator {
 
     private List<GraphSourceItem> generateIf(SourceGeneratorLocalData localData, GraphTargetItem expression, List<GraphTargetItem> onTrueCmds, List<GraphTargetItem> onFalseCmds, boolean ternar) throws CompilationException {
         List<GraphSourceItem> ret = new ArrayList<>();
-        if (expression instanceof Inverted) {
-            ret.addAll(((Inverted) expression).invert(null).toSource(localData, this));
+        if (expression instanceof NotItem) {
+            ret.addAll(expression.value.toSource(localData, this));
         } else {
             ret.addAll(expression.toSource(localData, this));
             ret.add(new ActionNot());
@@ -160,17 +219,16 @@ public class ActionSourceGenerator implements SourceGenerator {
         byte[] onTrueBytes = Action.actionsToBytes(onTrue, false, SWF.DEFAULT_VERSION);
         int onTrueLen = onTrueBytes.length;
 
-        ActionIf ifaif = new ActionIf(0);
+        ActionIf ifaif = new ActionIf(0, charset);
         ret.add(ifaif);
         ret.addAll(onTrue);
         ifaif.setJumpOffset(onTrueLen);
         ActionJump ajmp = null;
         if (onFalse != null) {
-            if (!((!nonempty(onTrue).isEmpty())
-                    && (onTrue.get(onTrue.size() - 1) instanceof ActionJump)
-                    && ((((ActionJump) onTrue.get(onTrue.size() - 1)).isContinue)
-                    || (((ActionJump) onTrue.get(onTrue.size() - 1)).isBreak)))) {
-                ajmp = new ActionJump(0);
+            if (onTrueCmds.isEmpty()
+                    || !((onTrueCmds.get(onTrueCmds.size() - 1) instanceof ContinueItem)
+                    || (onTrueCmds.get(onTrueCmds.size() - 1) instanceof BreakItem))) {
+                ajmp = new ActionJump(0, charset);
                 ret.add(ajmp);
                 onTrueLen += ajmp.getTotalActionLength();
             }
@@ -185,11 +243,6 @@ public class ActionSourceGenerator implements SourceGenerator {
         return ret;
     }
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, IfItem item) throws CompilationException {
-        return generateIf(localData, item.expression, item.onTrue, item.onFalse, false);
-    }
-
     private void fixLoop(List<Action> code, int breakOffset) {
         fixLoop(code, breakOffset, Integer.MAX_VALUE);
     }
@@ -197,7 +250,7 @@ public class ActionSourceGenerator implements SourceGenerator {
     private void fixLoop(List<Action> code, int breakOffset, int continueOffset) {
         int pos = 0;
         for (Action a : code) {
-            pos += a.getTotalActionLength();
+            pos += a.getBytesLength();
             if (a instanceof ActionJump) {
                 ActionJump aj = (ActionJump) a;
                 if (aj.isContinue && (continueOffset != Integer.MAX_VALUE)) {
@@ -212,296 +265,92 @@ public class ActionSourceGenerator implements SourceGenerator {
         }
     }
 
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, TernarOpItem item) throws CompilationException {
-        List<GraphTargetItem> onTrue = new ArrayList<>();
-        onTrue.add(item.onTrue);
-        List<GraphTargetItem> onFalse = new ArrayList<>();
-        onFalse.add(item.onFalse);
-        return generateIf(localData, item.expression, onTrue, onFalse, true);
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, WhileItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        List<Action> whileExpr = new ArrayList<>();
-
-        List<GraphTargetItem> ex = new ArrayList<>(item.expression);
-        if (!ex.isEmpty()) {
-            GraphTargetItem lastItem = ex.remove(ex.size() - 1);
-            whileExpr.addAll(generateToActionList(localData, ex));
-            whileExpr.addAll(toActionList(lastItem.toSource(localData, this))); //Want result
-        }
-
-        List<Action> whileBody = generateToActionList(localData, item.commands);
-        whileExpr.add(new ActionNot());
-        ActionIf whileaif = new ActionIf(0);
-        whileExpr.add(whileaif);
-        ActionJump whileajmp = new ActionJump(0);
-        whileBody.add(whileajmp);
-        int whileExprLen = Action.actionsToBytes(whileExpr, false, SWF.DEFAULT_VERSION).length;
-        int whileBodyLen = Action.actionsToBytes(whileBody, false, SWF.DEFAULT_VERSION).length;
-        whileajmp.setJumpOffset(-(whileExprLen
-                + whileBodyLen));
-        whileaif.setJumpOffset(whileBodyLen);
-        ret.addAll(whileExpr);
-        fixLoop(whileBody, whileBodyLen, -whileExprLen);
-        ret.addAll(whileBody);
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, DoWhileItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        List<Action> doExpr = generateToActionList(localData, item.expression);
-        List<Action> doBody = generateToActionList(localData, item.commands);
-
-        int doBodyLen = Action.actionsToBytes(doBody, false, SWF.DEFAULT_VERSION).length;
-        int doExprLen = Action.actionsToBytes(doExpr, false, SWF.DEFAULT_VERSION).length;
-
-        ret.addAll(doBody);
-        ret.addAll(doExpr);
-        ActionIf doif = new ActionIf(0);
-        ret.add(doif);
-        int offset = doBodyLen + doExprLen + doif.getTotalActionLength();
-        doif.setJumpOffset(-offset);
-        fixLoop(doBody, offset, doBodyLen);
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, ForItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        List<Action> forExpr = generateToActionList(localData, item.expression);
-        List<Action> forBody = generateToActionList(localData, item.commands);
-        List<Action> forFinalCommands = generateToActionList(localData, item.finalCommands);
-
-        forExpr.add(new ActionNot());
-        ActionIf foraif = new ActionIf(0);
-        forExpr.add(foraif);
-        ActionJump forajmp = new ActionJump(0);
-        int forajmpLen = forajmp.getTotalActionLength();
-        int forExprLen = Action.actionsToBytes(forExpr, false, SWF.DEFAULT_VERSION).length;
-        int forBodyLen = Action.actionsToBytes(forBody, false, SWF.DEFAULT_VERSION).length;
-        int forFinalLen = Action.actionsToBytes(forFinalCommands, false, SWF.DEFAULT_VERSION).length;
-        forajmp.setJumpOffset(-(forExprLen
-                + forBodyLen + forFinalLen + forajmpLen));
-        foraif.setJumpOffset(forBodyLen + forFinalLen + forajmpLen);
-        ret.addAll(forExpr);
-        ret.addAll(forBody);
-        ret.addAll(forFinalCommands);
-        ret.add(forajmp);
-        fixLoop(forBody, forBodyLen + forFinalLen + forajmpLen, forBodyLen);
-        return ret;
-    }
-
-    private long uniqLast = 0;
-
-    public String uniqId() {
-        uniqLast++;
-        return "" + uniqLast;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, SwitchItem item) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        HashMap<String, Integer> registerVars = getRegisterVars(localData);
-        int exprReg = 0;
-        for (int i = 0; i < 256; i++) {
-            if (!registerVars.containsValue(i)) {
-                registerVars.put("__switch" + uniqId(), i);
-                exprReg = i;
-                break;
-            }
-        }
-
-        ret.addAll(toActionList(item.switchedObject.toSource(localData, this)));
-
-        boolean firstCase = true;
-        List<List<ActionIf>> caseIfs = new ArrayList<>();
-        List<List<Action>> caseCmds = new ArrayList<>();
-        List<List<List<Action>>> caseExprsAll = new ArrayList<>();
-
-        int defaultPos = -1;
-
-        loopm:
-        for (int m = 0; m < item.caseValues.size(); m++) {
-            List<List<Action>> caseExprs = new ArrayList<>();
-            List<ActionIf> caseIfsOne = new ArrayList<>();
-            int mapping = item.valuesMapping.get(m);
-
-            for (; m < item.caseValues.size(); m++) {
-                int newmapping = item.valuesMapping.get(m);
-                if (newmapping != mapping) {
-                    m--;
-                    break;
-                }
-
-                if (item.caseValues.get(m) instanceof DefaultItem) {
-                    defaultPos = caseIfs.size();
-                } else {
-                    List<Action> curCaseExpr = generateToActionList(localData, item.caseValues.get(m));
-                    caseExprs.add(curCaseExpr);
-                    if (firstCase) {
-                        curCaseExpr.add(0, new ActionStoreRegister(exprReg));
-                    } else {
-                        curCaseExpr.add(0, new ActionPush(new RegisterNumber(exprReg)));
-                    }
-                    curCaseExpr.add(new ActionStrictEquals());
-                    ActionIf aif = new ActionIf(0);
-                    caseIfsOne.add(aif);
-                    curCaseExpr.add(aif);
-                    ret.addAll(curCaseExpr);
-                }
-                firstCase = false;
-            }
-            caseExprsAll.add(caseExprs);
-            caseIfs.add(caseIfsOne);
-            List<Action> caseCmd = generateToActionList(localData, item.caseCommands.get(mapping));
-            caseCmds.add(caseCmd);
-        }
-
-        ActionJump defJump = new ActionJump(0);
-        ret.add(defJump);
-        for (List<Action> caseCmd : caseCmds) {
-            ret.addAll(caseCmd);
-        }
-
-        List<List<Integer>> exprLengths = new ArrayList<>();
-        for (List<List<Action>> caseExprs : caseExprsAll) {
-            List<Integer> lengths = new ArrayList<>();
-            for (List<Action> caseExpr : caseExprs) {
-                lengths.add(Action.actionsToBytes(caseExpr, false, SWF.DEFAULT_VERSION).length);
-            }
-            exprLengths.add(lengths);
-        }
-        List<Integer> caseLengths = new ArrayList<>();
-        for (List<Action> caseCmd : caseCmds) {
-            caseLengths.add(Action.actionsToBytes(caseCmd, false, SWF.DEFAULT_VERSION).length);
-        }
-
-        for (int i = 0; i < caseIfs.size(); i++) {
-            for (int c = 0; c < caseIfs.get(i).size(); c++) {
-                int jmpPos = 0;
-                for (int j = c + 1; j < caseIfs.get(i).size(); j++) {
-                    jmpPos += exprLengths.get(i).get(j);
-                }
-                for (int k = i + 1; k < caseIfs.size(); k++) {
-                    for (int m = 0; m < caseIfs.get(k).size(); m++) {
-                        jmpPos += exprLengths.get(k).get(m);
-                    }
-                }
-                jmpPos += defJump.getTotalActionLength();
-                for (int n = 0; n < i; n++) {
-                    jmpPos += caseLengths.get(n);
-                }
-                caseIfs.get(i).get(c).setJumpOffset(jmpPos);
-            }
-        }
-        int defJmpPos = 0;
-        for (int i = 0; i < caseIfs.size(); i++) {
-            if (defaultPos == -1 || i < defaultPos) {
-                defJmpPos += caseLengths.get(i);
-            }
-        }
-
-        defJump.setJumpOffset(defJmpPos);
-        List<Action> caseCmdsAll = new ArrayList<>();
-        int breakOffset = 0;
-        for (int i = 0; i < caseCmds.size(); i++) {
-            caseCmdsAll.addAll(caseCmds.get(i));
-            breakOffset += caseLengths.get(i);
-        }
-        fixLoop(caseCmdsAll, breakOffset);
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, NotItem item) throws CompilationException {
-        if (item.getOriginal() instanceof Inverted) {
-            GraphTargetItem norig = ((Inverted) item).invert(null);
-            return norig.toSource(localData, this);
-        }
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ret.addAll(item.getOriginal().toSource(localData, this));
-        ret.add(new ActionNot());
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, DuplicateItem item) {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ret.add(new ActionPushDuplicate());
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, BreakItem item) {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ActionJump abreak = new ActionJump(0);
-        abreak.isBreak = true;
-        ret.add(abreak);
-        return ret;
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, ContinueItem item) {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        ActionJump acontinue = new ActionJump(0);
-        acontinue.isContinue = true;
-        ret.add(acontinue);
-        return ret;
-    }
-
-    private List<Action> generateToActionList(SourceGeneratorLocalData localData, List<GraphTargetItem> commands) throws CompilationException {
-        return toActionList(generate(localData, commands));
-    }
-
-    private List<Action> generateToActionList(SourceGeneratorLocalData localData, GraphTargetItem command) throws CompilationException {
-        return toActionList(command.toSource(localData, this));
-    }
-
-    @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, List<GraphTargetItem> commands) throws CompilationException {
-        List<GraphSourceItem> ret = new ArrayList<>();
-        for (GraphTargetItem item : commands) {
-            ret.addAll(item.toSourceIgnoreReturnValue(localData, this));
-        }
-        return ret;
-    }
-
+    /**
+     * Gets register variables.
+     *
+     * @param localData Local data
+     * @return Register variables
+     */
     public HashMap<String, Integer> getRegisterVars(SourceGeneratorLocalData localData) {
         return localData.registerVars;
     }
 
+    /**
+     * Sets register variables.
+     *
+     * @param localData Local data
+     * @param value Register variables
+     */
     public void setRegisterVars(SourceGeneratorLocalData localData, HashMap<String, Integer> value) {
         localData.registerVars = value;
     }
 
+    /**
+     * Sets in function.
+     *
+     * @param localData Local data
+     * @param value Value
+     */
     public void setInFunction(SourceGeneratorLocalData localData, int value) {
         localData.inFunction = value;
     }
 
+    /**
+     * Gets in function.
+     *
+     * @param localData Local data
+     * @return Value
+     */
     public int isInFunction(SourceGeneratorLocalData localData) {
         return localData.inFunction;
     }
 
+    /**
+     * Checks if in method.
+     *
+     * @param localData Local data
+     * @return True if in method
+     */
     public boolean isInMethod(SourceGeneratorLocalData localData) {
         return localData.inMethod;
     }
 
+    /**
+     * Sets in method.
+     *
+     * @param localData Local data
+     * @param value Value
+     */
     public void setInMethod(SourceGeneratorLocalData localData, boolean value) {
         localData.inMethod = value;
     }
 
+    /**
+     * Gets for in level.
+     *
+     * @param localData Local data
+     * @return For in level
+     */
     public int getForInLevel(SourceGeneratorLocalData localData) {
         return localData.forInLevel;
     }
 
+    /**
+     * Sets for in level.
+     *
+     * @param localData Local data
+     * @param value Value
+     */
     public void setForInLevel(SourceGeneratorLocalData localData, int value) {
         localData.forInLevel = value;
     }
 
+    /**
+     * Gets temp register.
+     *
+     * @param localData Local data
+     * @return Temp register
+     */
     public int getTempRegister(SourceGeneratorLocalData localData) {
         HashMap<String, Integer> registerVars = getRegisterVars(localData);
         for (int tmpReg = 0; tmpReg < 256; tmpReg++) {
@@ -513,6 +362,12 @@ public class ActionSourceGenerator implements SourceGenerator {
         return 0; //?
     }
 
+    /**
+     * Releases temp register.
+     *
+     * @param localData Local data
+     * @param tmp Temp register
+     */
     public void releaseTempRegister(SourceGeneratorLocalData localData, int tmp) {
         HashMap<String, Integer> registerVars = getRegisterVars(localData);
         registerVars.remove("__temp" + tmp);
@@ -621,23 +476,30 @@ public class ActionSourceGenerator implements SourceGenerator {
         return ret;
     }
 
-    private final List<String> constantPool;
-
-    private final int swfVersion;
-
+    /**
+     * Gets SWF version.
+     *
+     * @return SWF version
+     */
     public int getSwfVersion() {
         return swfVersion;
     }
 
-    public ActionSourceGenerator(int swfVersion, List<String> constantPool) {
-        this.constantPool = constantPool;
-        this.swfVersion = swfVersion;
-    }
-
+    /**
+     * Gets constant pool.
+     *
+     * @return Constant pool
+     */
     public List<String> getConstantPool() {
         return constantPool;
     }
 
+    /**
+     * Gets Push constant item.
+     *
+     * @param s Constant
+     * @return Push constant item
+     */
     public DirectValueActionItem pushConstTargetItem(String s) {
         int index = constantPool.indexOf(s);
         if (index == -1) {
@@ -647,15 +509,41 @@ public class ActionSourceGenerator implements SourceGenerator {
         return new DirectValueActionItem(null, null, 0, new ConstantIndex(index), constantPool);
     }
 
+    /**
+     * Gets Push constant action.
+     *
+     * @param s Constant
+     * @return Push constant action
+     */
     public ActionPush pushConst(String s) {
         int index = constantPool.indexOf(s);
         if (index == -1) {
             constantPool.add(s);
             index = constantPool.indexOf(s);
         }
-        return new ActionPush(new ConstantIndex(index));
+        return new ActionPush(new ConstantIndex(index), charset);
     }
 
+    @Override
+    public List<GraphSourceItem> generateDiscardValue(SourceGeneratorLocalData localData, GraphTargetItem item) throws CompilationException {
+        List<GraphSourceItem> ret = item.toSource(localData, this);
+        ret.add(new ActionPop());
+        return ret;
+    }
+
+    /**
+     * Generates traits.
+     *
+     * @param localData Local data
+     * @param isInterface Is interface
+     * @param name Name
+     * @param extendsVal Extends value
+     * @param implementsStr Implements
+     * @param traits Traits
+     * @param traitsStatic Static traits
+     * @return List of GraphSourceItem
+     * @throws CompilationException On compilation error
+     */
     public List<GraphSourceItem> generateTraits(SourceGeneratorLocalData localData, boolean isInterface, GraphTargetItem name, GraphTargetItem extendsVal, List<GraphTargetItem> implementsStr, List<MyEntry<GraphTargetItem, GraphTargetItem>> traits, List<Boolean> traitsStatic) throws CompilationException {
         List<String> extendsStr = getVarParts(extendsVal);
         List<GraphSourceItem> ret = new ArrayList<>();
@@ -669,14 +557,14 @@ public class ActionSourceGenerator implements SourceGenerator {
             }
 
             List<Action> val = new ArrayList<>();
-            val.add(new ActionPush((Double) 0.0));
+            val.add(new ActionPush((Double) 0.0, charset));
             val.add(pushConst("Object"));
             val.add(new ActionNewObject());
             notBody.addAll(typeToActions(globalClassTypeStr, val));
             ret.addAll(typeToActions(globalClassTypeStr, null));
             ret.add(new ActionNot());
             ret.add(new ActionNot());
-            ret.add(new ActionIf(Action.actionsToBytes(notBody, false, SWF.DEFAULT_VERSION).length));
+            ret.add(new ActionIf(Action.actionsToBytes(notBody, false, SWF.DEFAULT_VERSION).length, charset));
             ret.addAll(notBody);
             ret.add(new ActionPop());
         }
@@ -703,16 +591,25 @@ public class ActionSourceGenerator implements SourceGenerator {
 
         if (constructor == null) {
             List<Action> val = new ArrayList<>();
-            val.add(new ActionDefineFunction("", new ArrayList<>(), 0, SWF.DEFAULT_VERSION));
+            val.add(new ActionDefineFunction("", new ArrayList<>(), 0, SWF.DEFAULT_VERSION, charset));
             if (!isInterface) {
-                val.add(new ActionStoreRegister(1));
+                val.add(new ActionStoreRegister(1, charset));
             }
-            constr.addAll(typeToActions(nameStr, val));
+            constr.addAll(typeToActions(globalClassTypeStr, val));
         } else {
             constr.addAll(toActionList(((FunctionActionItem) constructor).toSource(localData, this)));
-            constr.add(new ActionStoreRegister(1));
-            constr = (typeToActions(nameStr, constr));
+            constr.add(new ActionStoreRegister(1, charset));
+            constr = (typeToActions(globalClassTypeStr, constr));
         }
+
+        Set<String> properties = new LinkedHashSet<>();
+        Set<String> setters = new HashSet<>();
+        Set<String> getters = new HashSet<>();
+
+        Set<String> staticProperties = new LinkedHashSet<>();
+        Set<String> staticSetters = new HashSet<>();
+        Set<String> staticGetters = new HashSet<>();
+
         if (!isInterface) {
             for (int pass = 1; pass <= 2; pass++) { //two passes, methods first, then variables
                 for (int t = 0; t < traits.size(); t++) {
@@ -723,12 +620,37 @@ public class ActionSourceGenerator implements SourceGenerator {
                     boolean isFunc = (en.getValue() instanceof FunctionActionItem);
                     if (pass == 1 && isFunc) { //Add methods in first pass
                         FunctionActionItem fi = (FunctionActionItem) en.getValue();
-                        ifbody.add(new ActionPush(new RegisterNumber(traitsStatic.get(t) ? 1 : 2)));
-                        ifbody.add(pushConst(getName(en.getKey())));
+                        if (fi.isGetter || fi.isSetter) {
+                            (traitsStatic.get(t) ? staticProperties : properties).add(fi.calculatedFunctionName.toString());
+                        }
+
+                        if (!FunctionActionItem.DECOMPILE_GET_SET) {
+                            if (fi.calculatedFunctionName.toString().startsWith("__get__") || fi.calculatedFunctionName.toString().startsWith("__set__")) {
+                                (traitsStatic.get(t) ? staticProperties : properties).add(fi.calculatedFunctionName.toString().substring(7));
+                            }
+                            if (fi.calculatedFunctionName.toString().startsWith("__get__")) {
+                                (traitsStatic.get(t) ? staticGetters : getters).add(fi.calculatedFunctionName.toString().substring(7));
+                            }
+                            if (fi.calculatedFunctionName.toString().startsWith("__set__")) {
+                                (traitsStatic.get(t) ? staticSetters : setters).add(fi.calculatedFunctionName.toString().substring(7));
+                            }
+                        }
+
+                        String prefix = "";
+                        if (fi.isGetter) { //really has "get" keyword
+                            (traitsStatic.get(t) ? staticGetters : getters).add(fi.calculatedFunctionName.toString());
+                            prefix = "__get__";
+                        }
+                        if (fi.isSetter) { //really has "set" keyword
+                            (traitsStatic.get(t) ? staticSetters : setters).add(fi.calculatedFunctionName.toString());
+                            prefix = "__set__";
+                        }
+                        ifbody.add(new ActionPush(new RegisterNumber(traitsStatic.get(t) ? 1 : 2), charset));
+                        ifbody.add(pushConst(prefix + getName(en.getKey())));
                         ifbody.addAll(toActionList(fi.toSource(localData, this)));
                         ifbody.add(new ActionSetMember());
                     } else if (pass == 2 && !isFunc) { //add variables in second pass
-                        ifbody.add(new ActionPush(new RegisterNumber(traitsStatic.get(t) ? 1 : 2)));
+                        ifbody.add(new ActionPush(new RegisterNumber(traitsStatic.get(t) ? 1 : 2), charset));
                         ifbody.add(pushConst(getName(en.getKey())));
                         ifbody.addAll(toActionList(en.getValue().toSource(localData, this)));
                         ifbody.add(new ActionSetMember());
@@ -737,35 +659,69 @@ public class ActionSourceGenerator implements SourceGenerator {
             }
         }
 
+        for (String prop : staticProperties) {
+            if (staticSetters.contains(prop)) {
+                ifbody.add(new ActionPush(new Object[]{new RegisterNumber(1), "__set__" + prop}, charset));
+                ifbody.add(new ActionGetMember());
+            } else {
+                ifbody.add(new ActionDefineFunction("", new ArrayList<String>(), 0, swfVersion, charset));
+            }
+            if (staticGetters.contains(prop)) {
+                ifbody.add(new ActionPush(new Object[]{new RegisterNumber(1), "__get__" + prop}, charset));
+                ifbody.add(new ActionGetMember());
+            } else {
+                ifbody.add(new ActionDefineFunction("", new ArrayList<String>(), 0, swfVersion, charset));
+            }
+            ifbody.add(new ActionPush(new Object[]{prop, 3, new RegisterNumber(1), "addProperty"}, charset));
+            ifbody.add(new ActionCallMethod());
+        }
+
+        for (String prop : properties) {
+            if (setters.contains(prop)) {
+                ifbody.add(new ActionPush(new Object[]{new RegisterNumber(2), "__set__" + prop}, charset));
+                ifbody.add(new ActionGetMember());
+            } else {
+                ifbody.add(new ActionDefineFunction("", new ArrayList<String>(), 0, swfVersion, charset));
+            }
+            if (getters.contains(prop)) {
+                ifbody.add(new ActionPush(new Object[]{new RegisterNumber(2), "__get__" + prop}, charset));
+                ifbody.add(new ActionGetMember());
+            } else {
+                ifbody.add(new ActionDefineFunction("", new ArrayList<String>(), 0, swfVersion, charset));
+            }
+            ifbody.add(new ActionPush(new Object[]{prop, 3, new RegisterNumber(2), "addProperty"}, charset));
+            ifbody.add(new ActionCallMethod());
+        }
+
         if (!isInterface) {
-            ifbody.add(new ActionPush((Long) 1L));
-            ifbody.add(new ActionPush(Null.INSTANCE));
-            ifbody.addAll(typeToActions(nameStr, null));
+            ifbody.add(new ActionPush((Long) 1L, charset));
+            ifbody.add(new ActionPush(Null.INSTANCE, charset));
+            ifbody.addAll(typeToActions(globalClassTypeStr, null));
             ifbody.add(pushConst("prototype"));
             ifbody.add(new ActionGetMember());
-            ifbody.add(new ActionPush((Long) 3L));
+            ifbody.add(new ActionPush((Long) 3L, charset));
             ifbody.add(pushConst("ASSetPropFlags"));
             ifbody.add(new ActionCallFunction());
         }
 
         if (constr.isEmpty()) {
             List<Action> val = new ArrayList<>();
-            val.add(new ActionDefineFunction("", new ArrayList<>(), 0, SWF.DEFAULT_VERSION));
+            val.add(new ActionDefineFunction("", new ArrayList<>(), 0, SWF.DEFAULT_VERSION, charset));
             if (!isInterface) {
-                val.add(new ActionStoreRegister(1));
+                val.add(new ActionStoreRegister(1, charset));
             }
             constr.addAll(typeToActions(globalClassTypeStr, val));
         }
         if (!extendsStr.isEmpty()) {
             constr.addAll(typeToActions(globalClassTypeStr, null));
             constr.addAll(typeToActions(extendsStr, null));
-            constr.add(new ActionExtends());
+            constr.add(new ActionExtends(charset));
         }
         if (!isInterface) {
-            constr.add(new ActionPush(new RegisterNumber(1)));
+            constr.add(new ActionPush(new RegisterNumber(1), charset));
             constr.add(pushConst("prototype"));
             constr.add(new ActionGetMember());
-            constr.add(new ActionStoreRegister(2));
+            constr.add(new ActionStoreRegister(2, charset));
             constr.add(new ActionPop());
         }
 
@@ -777,23 +733,323 @@ public class ActionSourceGenerator implements SourceGenerator {
                 globImp.addAll(impList);
                 constr.addAll(typeToActions(globImp, null));
             }
-            constr.add(new ActionPush((long) implementsStr.size()));
+            constr.add(new ActionPush((long) implementsStr.size(), charset));
             constr.addAll(typeToActions(globalClassTypeStr, null));
-            constr.add(new ActionImplementsOp());
+            constr.add(new ActionImplementsOp(charset));
         }
         ifbody.addAll(0, constr);
 
         ret.addAll(typeToActions(globalClassTypeStr, null));
         ret.add(new ActionNot());
         ret.add(new ActionNot());
-        ret.add(new ActionIf(Action.actionsToBytes(ifbody, false, SWF.DEFAULT_VERSION).length));
+        int ifOffset = Action.actionsToBytes(ifbody, false, SWF.DEFAULT_VERSION).length;
+        if (ifOffset > 0x7fff) {
+            if (!localData.secondRun) { //to avoid printing the warning twice
+                Logger.getLogger(ActionSourceGenerator.class.getName()).warning("The class is long. If offset for its header would be longer than max value for SI16, 0 was stored instead. This should not have any negative impact.");
+            }
+            ifOffset = 0;
+        }
+        ret.add(new ActionIf(ifOffset, charset));
         ret.addAll(ifbody);
         ret.add(new ActionPop());
         return ret;
     }
 
     @Override
-    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, CommaExpressionItem item) throws CompilationException {
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, FalseItem item) throws CompilationException {
+        return GraphTargetItem.toSourceMerge(localData, this, new ActionPush(Boolean.FALSE, charset));
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, TrueItem item) throws CompilationException {
+        return GraphTargetItem.toSourceMerge(localData, this, new ActionPush(Boolean.TRUE, charset));
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, AndItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.addAll(generateToActionList(localData, item.leftSide));
+        ret.add(new ActionPushDuplicate(charset));
+        ret.add(new ActionNot());
+        List<Action> andExpr = generateToActionList(localData, item.rightSide);
+        andExpr.add(0, new ActionPop());
+        int andExprLen = Action.actionsToBytes(andExpr, false, SWF.DEFAULT_VERSION).length;
+        ret.add(new ActionIf(andExprLen, charset));
+        ret.addAll(andExpr);
+        return ret;
+
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, OrItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.addAll(generateToActionList(localData, item.leftSide));
+        ret.add(new ActionPushDuplicate(charset));
+        List<Action> orExpr = generateToActionList(localData, item.rightSide);
+        orExpr.add(0, new ActionPop());
+        int orExprLen = Action.actionsToBytes(orExpr, false, SWF.DEFAULT_VERSION).length;
+        ret.add(new ActionIf(orExprLen, charset));
+        ret.addAll(orExpr);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, IfItem item) throws CompilationException {
+        return generateIf(localData, item.expression, item.onTrue, item.onFalse, false);
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, TernarOpItem item) throws CompilationException {
+        List<GraphTargetItem> onTrue = new ArrayList<>();
+        onTrue.add(item.onTrue);
+        List<GraphTargetItem> onFalse = new ArrayList<>();
+        onFalse.add(item.onFalse);
+        return generateIf(localData, item.expression, onTrue, onFalse, true);
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, WhileItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        List<Action> whileExpr = new ArrayList<>();
+
+        List<GraphTargetItem> ex = new ArrayList<>(item.expression);
+        if (!ex.isEmpty()) {
+            GraphTargetItem lastItem = ex.remove(ex.size() - 1);
+            whileExpr.addAll(generateToActionList(localData, ex));
+            whileExpr.addAll(toActionList(lastItem.toSource(localData, this))); //Want result
+        }
+
+        List<Action> whileBody = generateToActionList(localData, item.commands);
+        whileExpr.add(new ActionNot());
+        ActionIf whileaif = new ActionIf(0, charset);
+        whileExpr.add(whileaif);
+        ActionJump whileajmp = new ActionJump(0, charset);
+        whileBody.add(whileajmp);
+        int whileExprLen = Action.actionsToBytes(whileExpr, false, SWF.DEFAULT_VERSION).length;
+        int whileBodyLen = Action.actionsToBytes(whileBody, false, SWF.DEFAULT_VERSION).length;
+        whileajmp.setJumpOffset(-(whileExprLen
+                + whileBodyLen));
+        whileaif.setJumpOffset(whileBodyLen);
+        ret.addAll(whileExpr);
+        fixLoop(whileBody, whileBodyLen, -whileExprLen);
+        ret.addAll(whileBody);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, DoWhileItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        List<Action> doExpr = new ArrayList<>();
+
+        List<GraphTargetItem> ex = new ArrayList<>(item.expression);
+        if (!ex.isEmpty()) {
+            GraphTargetItem lastItem = ex.remove(ex.size() - 1);
+            doExpr.addAll(generateToActionList(localData, ex));
+            doExpr.addAll(toActionList(lastItem.toSource(localData, this))); //Want result
+        }
+        List<Action> doBody = generateToActionList(localData, item.commands);
+
+        int doBodyLen = Action.actionsToBytes(doBody, false, SWF.DEFAULT_VERSION).length;
+        int doExprLen = Action.actionsToBytes(doExpr, false, SWF.DEFAULT_VERSION).length;
+
+        ret.addAll(doBody);
+        ret.addAll(doExpr);
+        ActionIf doif = new ActionIf(0, charset);
+        ret.add(doif);
+        int offset = doBodyLen + doExprLen + doif.getTotalActionLength();
+        doif.setJumpOffset(-offset);
+        fixLoop(doBody, offset, doBodyLen);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, ForItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        List<Action> forExpr = generateToActionList(localData, item.expression);
+        List<Action> forBody = generateToActionList(localData, item.commands);
+        List<Action> forFinalCommands = generateToActionList(localData, item.finalCommands);
+
+        forExpr.add(new ActionNot());
+        ActionIf foraif = new ActionIf(0, charset);
+        forExpr.add(foraif);
+        ActionJump forajmp = new ActionJump(0, charset);
+        int forajmpLen = forajmp.getTotalActionLength();
+        int forExprLen = Action.actionsToBytes(forExpr, false, SWF.DEFAULT_VERSION).length;
+        int forBodyLen = Action.actionsToBytes(forBody, false, SWF.DEFAULT_VERSION).length;
+        int forFinalLen = Action.actionsToBytes(forFinalCommands, false, SWF.DEFAULT_VERSION).length;
+        forajmp.setJumpOffset(-(forExprLen
+                + forBodyLen + forFinalLen + forajmpLen));
+        foraif.setJumpOffset(forBodyLen + forFinalLen + forajmpLen);
+        ret.addAll(forExpr);
+        ret.addAll(forBody);
+        ret.addAll(forFinalCommands);
+        ret.add(forajmp);
+        fixLoop(forBody, forBodyLen + forFinalLen + forajmpLen, forBodyLen);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, SwitchItem item) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        HashMap<String, Integer> registerVars = getRegisterVars(localData);
+        int exprReg = 0;
+        for (int i = 0; i < 256; i++) {
+            if (!registerVars.containsValue(i)) {
+                registerVars.put("__switch" + uniqId(), i);
+                exprReg = i;
+                break;
+            }
+        }
+
+        ret.addAll(toActionList(item.switchedObject.toSource(localData, this)));
+
+        boolean firstCase = true;
+        List<List<ActionIf>> caseIfs = new ArrayList<>();
+        List<List<Action>> caseCmds = new ArrayList<>();
+        List<List<List<Action>>> caseExprsAll = new ArrayList<>();
+
+        int defaultPos = -1;
+
+        loopm:
+        for (int m = 0; m < item.caseValues.size(); m++) {
+            List<List<Action>> caseExprs = new ArrayList<>();
+            List<ActionIf> caseIfsOne = new ArrayList<>();
+            int mapping = item.valuesMapping.get(m);
+
+            for (; m < item.caseValues.size(); m++) {
+                int newmapping = item.valuesMapping.get(m);
+                if (newmapping != mapping) {
+                    m--;
+                    break;
+                }
+
+                if (item.caseValues.get(m) instanceof DefaultItem) {
+                    defaultPos = caseIfs.size();
+                } else {
+                    List<Action> curCaseExpr = generateToActionList(localData, item.caseValues.get(m));
+                    caseExprs.add(curCaseExpr);
+                    if (firstCase) {
+                        curCaseExpr.add(0, new ActionStoreRegister(exprReg, charset));
+                    } else {
+                        curCaseExpr.add(0, new ActionPush(new RegisterNumber(exprReg), charset));
+                    }
+                    curCaseExpr.add(new ActionStrictEquals());
+                    ActionIf aif = new ActionIf(0, charset);
+                    caseIfsOne.add(aif);
+                    curCaseExpr.add(aif);
+                    ret.addAll(curCaseExpr);
+                }
+                firstCase = false;
+            }
+            caseExprsAll.add(caseExprs);
+            caseIfs.add(caseIfsOne);
+            List<Action> caseCmd = generateToActionList(localData, item.caseCommands.get(mapping));
+            caseCmds.add(caseCmd);
+        }
+
+        ActionJump defJump = new ActionJump(0, charset);
+        ret.add(defJump);
+        for (List<Action> caseCmd : caseCmds) {
+            ret.addAll(caseCmd);
+        }
+
+        List<List<Integer>> exprLengths = new ArrayList<>();
+        for (List<List<Action>> caseExprs : caseExprsAll) {
+            List<Integer> lengths = new ArrayList<>();
+            for (List<Action> caseExpr : caseExprs) {
+                lengths.add(Action.actionsToBytes(caseExpr, false, SWF.DEFAULT_VERSION).length);
+            }
+            exprLengths.add(lengths);
+        }
+        List<Integer> caseLengths = new ArrayList<>();
+        for (List<Action> caseCmd : caseCmds) {
+            caseLengths.add(Action.actionsToBytes(caseCmd, false, SWF.DEFAULT_VERSION).length);
+        }
+
+        for (int i = 0; i < caseIfs.size(); i++) {
+            for (int c = 0; c < caseIfs.get(i).size(); c++) {
+                int jmpPos = 0;
+                for (int j = c + 1; j < caseIfs.get(i).size(); j++) {
+                    jmpPos += exprLengths.get(i).get(j);
+                }
+                for (int k = i + 1; k < caseIfs.size(); k++) {
+                    for (int m = 0; m < caseIfs.get(k).size(); m++) {
+                        jmpPos += exprLengths.get(k).get(m);
+                    }
+                }
+                jmpPos += defJump.getTotalActionLength();
+                for (int n = 0; n < i; n++) {
+                    jmpPos += caseLengths.get(n);
+                }
+                caseIfs.get(i).get(c).setJumpOffset(jmpPos);
+            }
+        }
+        int defJmpPos = 0;
+        for (int i = 0; i < caseIfs.size(); i++) {
+            if (defaultPos == -1 || i < defaultPos) {
+                defJmpPos += caseLengths.get(i);
+            }
+        }
+
+        defJump.setJumpOffset(defJmpPos);
+        List<Action> caseCmdsAll = new ArrayList<>();
+        int breakOffset = 0;
+        for (int i = 0; i < caseCmds.size(); i++) {
+            caseCmdsAll.addAll(caseCmds.get(i));
+            breakOffset += caseLengths.get(i);
+        }
+        fixLoop(caseCmdsAll, breakOffset);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, NotItem item) throws CompilationException {
+        /*if (item.value instanceof NotItem) {
+            return item.value.value.toSource(localData, this);
+        }*/
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.addAll(item.getOriginal().toSource(localData, this));
+        ret.add(new ActionNot());
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, DuplicateItem item) {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new ActionPushDuplicate(charset));
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, BreakItem item) {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ActionJump abreak = new ActionJump(0, charset);
+        abreak.isBreak = true;
+        ret.add(abreak);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, ContinueItem item) {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ActionJump acontinue = new ActionJump(0, charset);
+        acontinue.isContinue = true;
+        ret.add(acontinue);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, List<GraphTargetItem> commands) throws CompilationException {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        for (GraphTargetItem item : commands) {
+            ret.addAll(item.toSourceIgnoreReturnValue(localData, this));
+        }
+        ret = groupPushes(ret);
+        return ret;
+    }
+
+    @Override
+    public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, CommaExpressionItem item, boolean withReturnValue) throws CompilationException {
         if (item.commands.isEmpty()) {
             return new ArrayList<>();
         }
@@ -803,7 +1059,7 @@ public class ActionSourceGenerator implements SourceGenerator {
         GraphTargetItem lastExpr = cmds.remove(cmds.size() - 1);
         List<GraphSourceItem> ret = new ArrayList<>();
         ret.addAll(generate(localData, cmds));
-        ret.addAll(lastExpr.toSource(localData, this));
+        ret.addAll(withReturnValue ? lastExpr.toSource(localData, this) : lastExpr.toSourceIgnoreReturnValue(localData, this));
         return ret;
     }
 
@@ -811,13 +1067,6 @@ public class ActionSourceGenerator implements SourceGenerator {
     public List<GraphSourceItem> generate(SourceGeneratorLocalData localData, TypeItem item) throws CompilationException {
         //Unsupported in AS1/2
         return new ArrayList<>();
-    }
-
-    @Override
-    public List<GraphSourceItem> generateDiscardValue(SourceGeneratorLocalData localData, GraphTargetItem item) throws CompilationException {
-        List<GraphSourceItem> ret = item.toSource(localData, this);
-        ret.add(new ActionPop());
-        return ret;
     }
 
     @Override

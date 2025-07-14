@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,15 +31,28 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Interface.
  *
  * @author JPEXS
  */
 public class InterfaceActionItem extends ActionItem {
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Super interfaces
+     */
     public List<GraphTargetItem> superInterfaces;
 
+    /**
+     * Constructor.
+     *
+     * @param name Name
+     * @param superInterfaces Super interfaces
+     */
     public InterfaceActionItem(GraphTargetItem name, List<GraphTargetItem> superInterfaces) {
         super(null, null, NOPRECEDENCE);
         this.name = name;
@@ -48,7 +61,6 @@ public class InterfaceActionItem extends ActionItem {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        writer.startClass(name.toStringNoQuotes(localData));
         writer.append("interface ");
         name.toStringNoQuotes(writer, localData);
         boolean first = true;
@@ -62,7 +74,10 @@ public class InterfaceActionItem extends ActionItem {
             first = false;
             Action.getWithoutGlobal(ti).toStringNoQuotes(writer, localData);
         }
-        return writer.startBlock().endBlock().endClass();
+        writer.startBlock();
+        writer.startClass(name.toStringNoQuotes(localData));
+        writer.endClass();
+        return writer.endBlock();
     }
 
     @Override

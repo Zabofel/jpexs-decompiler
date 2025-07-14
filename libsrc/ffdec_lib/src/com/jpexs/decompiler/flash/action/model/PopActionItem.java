@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -25,11 +26,17 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
 
 /**
+ * Pop the object from the stack.
  *
  * @author JPEXS
  */
 public class PopActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public PopActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, NOPRECEDENCE);
     }
@@ -57,5 +64,25 @@ public class PopActionItem extends ActionItem {
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        return hash;
     }
 }

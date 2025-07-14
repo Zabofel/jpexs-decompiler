@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -36,8 +37,11 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.PathIterator;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * DefineScalingGrid tag - defines scaling grid.
  *
  * @author JPEXS
  */
@@ -56,7 +60,7 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineScalingGridTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -78,7 +82,7 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -114,7 +118,7 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
     }
 
     public RECT getRect() {
-        Shape s = getOutline(0, 0, 0, new RenderContext(), new Matrix(), new Matrix(), true);
+        Shape s = getOutline(true, 0, 0, 0, new RenderContext(), new Matrix(), new Matrix(), true, new ExportRectangle(0, 0, 1, 1)/*?*/, 1);
         if (s == null) {
             return null;
         }
@@ -122,7 +126,7 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
         return new RECT(r.x, r.x + r.width, r.y, r.y + r.height);
     }
 
-    public Shape getOutline(int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, Matrix prevTransform, boolean stroked) {
+    public Shape getOutline(boolean fast, int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, Matrix prevTransform, boolean stroked, ExportRectangle viewRect, double unzoom) {
         CharacterTag ct = swf.getCharacter(characterId);
         if (ct == null) {
             return null;
@@ -133,7 +137,7 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
         double[] coords = new double[6];
 
         DrawableTag dt = (DrawableTag) ct;
-        Shape path = dt.getOutline(frame, time, ratio, renderContext, transformation, stroked);
+        Shape path = dt.getOutline(fast, frame, time, ratio, renderContext, transformation, stroked, viewRect, unzoom);
         PathIterator iterator = path.getPathIterator(new AffineTransform());
         GeneralPath gp = new GeneralPath(GeneralPath.WIND_EVEN_ODD);
         ExportRectangle boundsRect = new ExportRectangle(dt.getRect());
@@ -185,10 +189,20 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
     public static void getSlices(ExportRectangle targetBounds, ExportRectangle boundsRect, ExportRectangle scalingGrid, ExportRectangle[] sourceRect, ExportRectangle[] targetRect, Matrix[] transforms) {
 
         double[] src_x = new double[]{boundsRect.xMin, scalingGrid.xMin, scalingGrid.xMax, boundsRect.xMax};
-        double[] dst_x = new double[]{targetBounds.xMin, targetBounds.xMin + scalingGrid.xMin, targetBounds.xMax - (boundsRect.xMax - scalingGrid.xMax), targetBounds.xMax};
+        double[] dst_x = new double[]{
+            targetBounds.xMin, 
+            targetBounds.xMin + scalingGrid.xMin - boundsRect.xMin, 
+            targetBounds.xMax - (boundsRect.xMax - scalingGrid.xMax),
+            targetBounds.xMax
+        };
 
         double[] src_y = new double[]{boundsRect.yMin, scalingGrid.yMin, scalingGrid.yMax, boundsRect.yMax};
-        double[] dst_y = new double[]{targetBounds.yMin, targetBounds.yMin + scalingGrid.yMin, targetBounds.yMax - (boundsRect.yMax - scalingGrid.yMax), targetBounds.yMax};
+        double[] dst_y = new double[]{
+            targetBounds.yMin, 
+            targetBounds.yMin + scalingGrid.yMin - boundsRect.yMin,
+            targetBounds.yMax - (boundsRect.yMax - scalingGrid.yMax), 
+            targetBounds.yMax
+        };
 
         int pos = 0;
         for (int sy = 0; sy < 3; sy++) {
@@ -200,29 +214,25 @@ public class DefineScalingGridTag extends Tag implements CharacterIdTag {
         }
 
         for (int i = 0; i < targetRect.length; i++) {
-
-            /*          sourceRect[i].xMax = roundPixels20(sourceRect[i].xMax);
-             sourceRect[i].yMax = roundPixels20(sourceRect[i].yMax);
-             sourceRect[i].xMin = roundPixels20(sourceRect[i].xMin);
-             sourceRect[i].yMin = roundPixels20(sourceRect[i].yMin);
-             */
-            //System.out.println("source[" + i + "]=" + sourceRect[i]);
-            //System.out.println("target[" + i + "]=" + targetRect[i]);
-
-            /*targetRect[i].xMax = roundPixels20(targetRect[i].xMax);
-             targetRect[i].yMax = roundPixels20(targetRect[i].yMax);
-             targetRect[i].xMin = roundPixels20(targetRect[i].xMin);
-             targetRect[i].yMin = roundPixels20(targetRect[i].yMin);
-             */
             transforms[i] = rectToRectMatrix(sourceRect[i], targetRect[i]);
 
-            targetRect[i].xMax = Math.rint(targetRect[i].xMax / SWF.unitDivisor);
+            /*targetRect[i].xMax = Math.rint(targetRect[i].xMax / SWF.unitDivisor);
             targetRect[i].yMax = Math.rint(targetRect[i].yMax / SWF.unitDivisor);
             targetRect[i].xMin = Math.rint(targetRect[i].xMin / SWF.unitDivisor);
-            targetRect[i].yMin = Math.rint(targetRect[i].yMin / SWF.unitDivisor);
-
-            //targetRect[i].xMax += maxStroke;
-            //Round to pixel boundary
+            targetRect[i].yMin = Math.rint(targetRect[i].yMin / SWF.unitDivisor);*/
         }
     }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("chid", "" + characterId);
+        return ret;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
+        needed.add(characterId);
+    }
+
 }

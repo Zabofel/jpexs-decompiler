@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.swf4.ActionSubtract;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -26,16 +29,26 @@ import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Subtract.
  *
  * @author JPEXS
  */
-public class SubtractActionItem extends BinaryOpItem {
+public class SubtractActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public SubtractActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "-", "Number", "Number");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_ADDITIVE, leftSide, rightSide, "-", "Number", "Number");
     }
 
     @Override
@@ -43,6 +56,13 @@ public class SubtractActionItem extends BinaryOpItem {
         return getResult(rightSide.getResultAsNumber(), leftSide.getResultAsNumber());
     }
 
+    /**
+     * Gets result.
+     *
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static Double getResult(Double rightResult, Double leftResult) {
         return leftResult - rightResult;
     }
@@ -52,10 +72,19 @@ public class SubtractActionItem extends BinaryOpItem {
         if ((leftSide instanceof DirectValueActionItem)
                 && (((((DirectValueActionItem) leftSide).value instanceof Float) && (((Float) ((DirectValueActionItem) leftSide).value) == 0f))
                 || ((((DirectValueActionItem) leftSide).value instanceof Double) && (((Double) ((DirectValueActionItem) leftSide).value) == 0.0))
-                || ((((DirectValueActionItem) leftSide).value instanceof Long) && (((Long) ((DirectValueActionItem) leftSide).value) == 0L)))) {
+                || ((((DirectValueActionItem) leftSide).value instanceof Long) && (((Long) ((DirectValueActionItem) leftSide).value) == 0L))
+                || ((DirectValueActionItem) leftSide).isString() && "0".equals(((DirectValueActionItem) leftSide).toString()))) {
             writer.append(operator);
             writer.append(" ");
-            rightSide.appendTry(writer, localData);
+
+            int rightPrecedence = rightSide.getPrecedence();
+            if (rightPrecedence >= precedence && rightPrecedence != GraphTargetItem.NOPRECEDENCE) {
+                writer.append("(");
+                rightSide.toString(writer, localData, coerceRight);
+                writer.append(")");
+            } else {
+                rightSide.toString(writer, localData, coerceRight);
+            }
             return writer;
         } else if (rightSide.getPrecedence() >= precedence) { // >=  add or subtract too
 
@@ -86,5 +115,12 @@ public class SubtractActionItem extends BinaryOpItem {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public List<GraphSourceItem> getOperatorInstruction() {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new ActionSubtract());
+        return ret;
     }
 }

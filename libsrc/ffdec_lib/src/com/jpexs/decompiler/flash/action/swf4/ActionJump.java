@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf4;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
@@ -33,35 +34,67 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Jump action - Jumps to a location.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionJump extends Action {
 
+    /**
+     * Offset to jump to
+     */
     private int offset;
 
+    /**
+     * Identifier
+     */
     public String identifier;
 
+    /**
+     * Is continue
+     */
     public boolean isContinue = false;
 
+    /**
+     * Is break
+     */
     public boolean isBreak = false;
 
+    /**
+     * Gets the jump offset
+     * @return Offset
+     */
     public int getJumpOffset() {
         return offset;
     }
 
+    /**
+     * Sets the jump offset
+     * @param offset Offset
+     */
     public final void setJumpOffset(int offset) {
         this.offset = offset;
     }
 
-    public ActionJump(int offset) {
-        super(0x99, 2);
+    /**
+     * Constructor
+     * @param offset Offset
+     * @param charset Charset
+     */
+    public ActionJump(int offset, String charset) {
+        super(0x99, 2, charset);
         setJumpOffset(offset);
     }
 
+    /**
+     * Constructor
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
     public ActionJump(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x99, actionLength);
+        super(0x99, actionLength, sis.getCharset());
         setJumpOffset(sis.readSI16("offset"));
     }
 
@@ -70,6 +103,10 @@ public class ActionJump extends Action {
         refs.add(getTargetAddress());
     }
 
+    /**
+     * Gets the target address
+     * @return Address
+     */
     public long getTargetAddress() {
         return getAddress() + 5 /*getTotalActionLength()*/ + offset;
     }
@@ -90,14 +127,21 @@ public class ActionJump extends Action {
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         long address = getTargetAddress();
         String ofsStr = Helper.formatAddress(address);
         return "Jump loc" + ofsStr;
     }
 
-    public ActionJump(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x99, 2);
+    /**
+     * Constructor
+     * @param lexer Lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionJump(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x99, 2, charset);
         identifier = lexIdentifier(lexer);
     }
 
@@ -125,7 +169,7 @@ public class ActionJump extends Action {
         if (ofs == -1) {
             int length = getBytesLength();
             ofs = code.adr2pos(getAddress() + length);
-            Logger.getLogger(ActionJump.class.getName()).log(Level.SEVERE, "Invalid jump to ofs" + Helper.formatAddress(targetAddress) + " from ofs" + Helper.formatAddress(getAddress()));
+            Logger.getLogger(ActionJump.class.getName()).log(Level.SEVERE, "Invalid jump to ofs{0} from ofs{1}", new Object[]{Helper.formatAddress(targetAddress), Helper.formatAddress(getAddress())});
         }
         ret.add(ofs);
         return ret;

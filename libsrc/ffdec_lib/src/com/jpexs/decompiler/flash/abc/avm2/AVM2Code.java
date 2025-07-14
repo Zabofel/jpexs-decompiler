@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,6 +24,7 @@ import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorGetSet;
 import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorJumps;
 import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorRegistersOld;
 import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorSimpleOld;
+import com.jpexs.decompiler.flash.abc.avm2.deobfuscation.AVM2DeobfuscatorZeroJumpsNullPushes;
 import com.jpexs.decompiler.flash.abc.avm2.exceptions.AVM2ExecutionException;
 import com.jpexs.decompiler.flash.abc.avm2.exceptions.AVM2VerifyErrorException;
 import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2Graph;
@@ -128,6 +129,8 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocal2Ins;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocal3Ins;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocalIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.localregs.SetLocalTypeIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.BkptIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.BkptLineIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.DeletePropertyIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.FindDefIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.FindPropertyIns;
@@ -136,6 +139,7 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetDescendantsIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetGlobalScopeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetGlobalSlotIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetLexIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetOuterScopeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetPropertyIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetScopeObjectIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetSlotIns;
@@ -155,58 +159,52 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.other.SetPropertyIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.SetSlotIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.SetSuperIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.other.ThrowIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.AbsJumpIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.AddDIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.AddPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.AllocIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.BkptIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.BkptLineIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CallInterfaceIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CallSuperIdIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CodeGenOpIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CoerceBIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CoerceDIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CoerceIIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CoerceOIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.CoerceUIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ConcatIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ConvertF4Ins;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ConvertFIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ConvertMIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ConvertMPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DecLocalPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DecodeIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DecrementPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DelDescendantsIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DeletePropertyLateIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DividePIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.DoubleToAtomIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.FindPropGlobalIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.GetOuterScopeIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.IncLocalPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.IncrementPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.InvalidIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.Lf32x4Ins;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.MarkIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.ModuloPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.MultiplyPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.NegatePIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PrologueIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PushConstantIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PushDNanIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PushDecimalIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PushFloat4Ins;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.PushFloatIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.SendEnterIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.SetPropertyLateIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.Sf32x4Ins;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.SubtractPIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.SweepIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.TimestampIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.UnPlusIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.VerifyOpIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.VerifyPassIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.other2.WbIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.TimestampIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.AddPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.ConvertMIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.ConvertMPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.DecLocalPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.DecrementPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.DividePIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.IncLocalPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.IncrementPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.ModuloPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.MultiplyPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.NegatePIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.PushDNanIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.PushDecimalIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.decimalsupport.SubtractPIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.deprecated.CoerceBIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.deprecated.CoerceDIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.deprecated.CoerceIIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.deprecated.CoerceUIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.ConvertF4Ins;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.ConvertFIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.Lf32x4Ins;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.PushFloat4Ins;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.PushFloatIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.Sf32x4Ins;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.floatsupport.UnPlusIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.AbsJumpIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.AddDIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.AllocIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.CallInterfaceIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.CallSuperIdIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.CodeGenOpIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.ConcatIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.DecodeIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.DelDescendantsIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.DeletePropertyLateIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.DoubleToAtomIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.InvalidIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.MarkIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.PrologueIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.SendEnterIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.SetPropertyLateIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.SweepIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.VerifyOpIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.VerifyPassIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.unknown.WbIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.DupIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PopIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PopScopeIns;
@@ -230,6 +228,7 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.types.AsTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.AsTypeLateIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceAIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceIns;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceOIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceOrConvertTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceSIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.ConvertBIns;
@@ -247,32 +246,41 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.xml.DXNSIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.xml.DXNSLateIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.xml.EscXAttrIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.xml.EscXElemIns;
+import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.CoerceAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.ConvertAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GetLexAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GetPropertyAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GetSlotAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.GlobalAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.InitPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.NewActivationAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.NewFunctionAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.NullAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.PackageAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.ReturnValueAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.ReturnVoidAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetLocalAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetSlotAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetTypeAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.StoreNewActivationAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.TraitSlotConstAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.UndefinedAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.WithAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.clauses.DeclarationAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ForEachInAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.clauses.ForInAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.parser.script.PropertyAVM2Item;
-import com.jpexs.helpers.Reference;
+import com.jpexs.decompiler.flash.abc.avm2.parser.script.AbcIndexing;
 import com.jpexs.decompiler.flash.abc.types.ABCException;
 import com.jpexs.decompiler.flash.abc.types.AssignedValue;
 import com.jpexs.decompiler.flash.abc.types.ConvertData;
 import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.MethodInfo;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
-import com.jpexs.decompiler.flash.abc.types.ValueKind;
+import com.jpexs.decompiler.flash.abc.types.Namespace;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.flash.abc.types.traits.Traits;
@@ -284,20 +292,23 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.helpers.SWFDecompilerPlugin;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
+import com.jpexs.decompiler.graph.AbstractGraphTargetRecursiveVisitor;
+import com.jpexs.decompiler.graph.AbstractGraphTargetVisitor;
 import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.ScopeStack;
+import com.jpexs.decompiler.graph.SecondPassException;
 import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.decompiler.graph.TypeItem;
-import com.jpexs.decompiler.graph.model.BinaryOpItem;
-import com.jpexs.decompiler.graph.model.ExitItem;
-import com.jpexs.decompiler.graph.model.IfItem;
 import com.jpexs.decompiler.graph.model.ScriptEndItem;
+import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.LinkedIdentityHashSet;
+import com.jpexs.helpers.Reference;
 import com.jpexs.helpers.ReflectionTools;
 import com.jpexs.helpers.stat.Statistics;
 import java.io.ByteArrayInputStream;
@@ -307,124 +318,237 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.Stack;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Class representing AVM2 code inside a method body.
  *
  * @author JPEXS
  */
 public class AVM2Code implements Cloneable {
 
+    /**
+     * Logger for this class
+     */
     private static final Logger logger = Logger.getLogger(AVM2Code.class.getName());
 
+    /**
+     * Debug mode - prints debug information.
+     */
     private static final boolean DEBUG_MODE = false;
 
-    public static int toSourceLimit = -1;
-
-    public List<AVM2Instruction> code;
-
+    /**
+     * Debug testing whether same code is write to output stream.
+     */
     public static boolean DEBUG_REWRITE = false;
 
+    /**
+     * Limit of toSource calls
+     */
+    public static int toSourceLimit = -1;
+
+    /**
+     * List of instructions in this code.
+     */
+    public List<AVM2Instruction> code;
+
+    /**
+     * U30 value (unsigned up to 30-bit integer)
+     */
     public static final int OPT_U30 = 0x100;
 
+    /**
+     * U8 value (unsigned 8 bit integer)
+     */
     public static final int OPT_U8 = 0x200;
 
+    /**
+     * S24 value (signed 24 bit integer)
+     */
     public static final int OPT_S24 = 0x300;
 
+    /**
+     * Case offsets
+     */
     public static final int OPT_CASE_OFFSETS = 0x400;
 
+    /**
+     * S8 value (signed 8 bit integer)
+     */
     public static final int OPT_S8 = 0x500;
 
+    /**
+     * S16 value (signed 16 bit integer)
+     */
     public static final int OPT_S16 = 0x600;
 
+    /**
+     * Multiname index data
+     */
     public static final int DAT_MULTINAME_INDEX = OPT_U30 + 0x01;
 
+    /**
+     * Argument count data
+     */
     public static final int DAT_ARG_COUNT = OPT_U30 + 0x02;
 
+    /**
+     * Method index data
+     */
     public static final int DAT_METHOD_INDEX = OPT_U30 + 0x03;
 
+    /**
+     * String index data
+     */
     public static final int DAT_STRING_INDEX = OPT_U30 + 0x04;
 
+    /**
+     * Debug type data
+     */
     public static final int DAT_DEBUG_TYPE = OPT_U8 + 0x05;
 
+    /**
+     * Register index data
+     */
     public static final int DAT_REGISTER_INDEX = OPT_U8 + 0x06;
 
+    /**
+     * Line number data
+     */
     public static final int DAT_LINENUM = OPT_U30 + 0x07;
 
+    /**
+     * Local register index data
+     */
     public static final int DAT_LOCAL_REG_INDEX = OPT_U30 + 0x08;
 
+    /**
+     * Slot index data
+     */
     public static final int DAT_SLOT_INDEX = OPT_U30 + 0x09;
 
+    /**
+     * Scope index data
+     */
     public static final int DAT_SCOPE_INDEX = OPT_U30 + 0x0A;
 
+    /**
+     * Offset data
+     */
     public static final int DAT_OFFSET = OPT_S24 + 0x0B;
 
+    /**
+     * Exception index data
+     */
     public static final int DAT_EXCEPTION_INDEX = OPT_U30 + 0x0C;
 
+    /**
+     * Class index data
+     */
     public static final int DAT_CLASS_INDEX = OPT_U30 + 0x0D;
 
+    /**
+     * Integer index data
+     */
     public static final int DAT_INT_INDEX = OPT_U30 + 0x0E;
 
+    /**
+     * Unsigned integer index data
+     */
     public static final int DAT_UINT_INDEX = OPT_U30 + 0x0F;
 
+    /**
+     * Double index data
+     */
     public static final int DAT_DOUBLE_INDEX = OPT_U30 + 0x10;
 
+    /**
+     * Decimal index data
+     */
     public static final int DAT_DECIMAL_INDEX = OPT_U30 + 0x11;
 
+    /**
+     * Case base offset data
+     */
     public static final int DAT_CASE_BASEOFFSET = OPT_S24 + 0x12;
 
+    /**
+     * Number context data
+     */
     public static final int DAT_NUMBER_CONTEXT = OPT_U30 + 0x13;
 
+    /**
+     * Dispatch ID data
+     */
     public static final int DAT_DISPATCH_ID = OPT_U30 + 0x14;
 
+    /**
+     * Float index data
+     */
     public static final int DAT_FLOAT_INDEX = OPT_U30 + 0x15;
 
+    /**
+     * Float4 index data
+     */
     public static final int DAT_FLOAT4_INDEX = OPT_U30 + 0x16;
 
+    /**
+     * Namespace index data
+     */
     public static final int DAT_NAMESPACE_INDEX = OPT_U30 + 0x17;
 
-    public static String operandTypeSizeToString(int ot) {
-        int sizeType = ot & 0xff00;
-        switch (sizeType) {
-            case OPT_U30:
-                return "U30";
-            case OPT_S16:
-                return "S16";
-            case OPT_U8:
-                return "U8";
-            case OPT_S8:
-                return "S8";
-            case OPT_S24:
-                return "S24";
-            case OPT_CASE_OFFSETS:
-                return "S24(=n), S24[n]";
-        }
-        return "";
-    }
-
+    /**
+     * Map of operand type identifiers
+     */
     private static Map<Integer, String> operandDataTypeIdentifiers = ReflectionTools.getConstNamesMap(AVM2Code.class, Integer.class, "^DAT_(.*)$");
 
-    public static String operandTypeToString(int ot, boolean withTypeSize) {
-        String typeSize = operandTypeSizeToString(ot);
-        if (ot == OPT_CASE_OFFSETS) {
-            return "number" + (withTypeSize ? "(U30)" : "") + ", offset" + (withTypeSize ? "(S24)" : "") + ", offset" + (withTypeSize ? "(S24)" : "") + ", ...";
-        }
-        if (operandDataTypeIdentifiers.containsKey(ot)) {
-            String dataType = operandDataTypeIdentifiers.get(ot);
-            return dataType + (withTypeSize ? "(" + typeSize + ")" : "");
-        } else {
-            return typeSize;
-        }
+    /**
+     * Instruction aliases array
+     */
+    private static final String[][] instructionAliasesArray = {
+        //first is original name, then aliases
+        {"getlocal0", "getlocal_0"},
+        {"getlocal1", "getlocal_1"},
+        {"getlocal2", "getlocal_2"},
+        {"getlocal3", "getlocal_3"},
+        {"setlocal0", "setlocal_0"},
+        {"setlocal1", "setlocal_1"},
+        {"setlocal2", "setlocal_2"},
+        {"setlocal3", "setlocal_3"}
+    };
 
+    /**
+     * Instruction aliases map
+     */
+    public static final Map<String, String> instructionAliases = new HashMap<>();
+
+    static {
+        for (String[] aliases : instructionAliasesArray) {
+            for (int s = 1; s < aliases.length; s++) {
+                instructionAliases.put(aliases[s], aliases[0]);
+            }
+        }
     }
 
+    /**
+     * Instruction set
+     */
     public static final InstructionDefinition[] instructionSet = new InstructionDefinition[256];
 
+    /**
+     * All instruction set
+     */
     public static final InstructionDefinition[] allInstructionSet = new InstructionDefinition[]{
         /*0x00*/null,
         /*0x01*/ new BkptIns(),
@@ -461,7 +585,7 @@ public class AVM2Code implements Cloneable {
         /*0x20*/ new PushNullIns(),
         /*0x21*/ new PushUndefinedIns(),
         /*0x22*/ new PushFloatIns(), //major 47+
-        /*0x22*/ new PushConstantIns(), //before major 47
+        /*0x22*/ //new PushConstantIns(), //before major 47
         /*0x23*/ new NextValueIns(),
         /*0x24*/ new PushByteIns(),
         /*0x25*/ new PushShortIns(),
@@ -519,7 +643,7 @@ public class AVM2Code implements Cloneable {
         /*0x59*/ new GetDescendantsIns(),
         /*0x5A*/ new NewCatchIns(),
         /*0x5B*/ new DelDescendantsIns(), //deldescendants according to Flex, findpropglobalstrict(internal-only) according to Tamarin
-        /*0x5C*/ new FindPropGlobalIns(), //Tamarin (internal-only)
+        /*0x5C*/ //new FindPropGlobalIns(), //Tamarin (internal-only)
         /*0x5D*/ new FindPropertyStrictIns(),
         /*0x5E*/ new FindPropertyIns(),
         /*0x5F*/ new FindDefIns(),
@@ -684,7 +808,8 @@ public class AVM2Code implements Cloneable {
         /*0xFC*/ new SweepIns(),
         /*0xFD*/ new CodeGenOpIns(),
         /*0xFE*/ new VerifyOpIns(),
-        /*0xFF*/ new DecodeIns(),};
+        /*0xFF*/ new DecodeIns()
+    };
     // endoflist
 
     static {
@@ -696,11 +821,9 @@ public class AVM2Code implements Cloneable {
                     instructionSet[opCode] = allInstructionSet[i];
                 } else if (instructionSet[opCode].hasFlag(AVM2InstructionFlag.NO_FLASH_PLAYER) && !allInstructionSet[i].hasFlag(AVM2InstructionFlag.NO_FLASH_PLAYER)) {
                     instructionSet[opCode] = allInstructionSet[i];
-                } //Prefer without decimal:
-                else if (instructionSet[opCode].hasFlag(AVM2InstructionFlag.ES4_NUMERICS_MINOR) && !allInstructionSet[i].hasFlag(AVM2InstructionFlag.ES4_NUMERICS_MINOR)) {
+                } else if (instructionSet[opCode].hasFlag(AVM2InstructionFlag.ES4_NUMERICS_MINOR) && !allInstructionSet[i].hasFlag(AVM2InstructionFlag.ES4_NUMERICS_MINOR)) { //Prefer without decimal:
                     instructionSet[opCode] = allInstructionSet[i];
-                } //Prefer without float:
-                else if (instructionSet[opCode].hasFlag(AVM2InstructionFlag.FLOAT_MAJOR) && !allInstructionSet[i].hasFlag(AVM2InstructionFlag.FLOAT_MAJOR)) {
+                } else if (instructionSet[opCode].hasFlag(AVM2InstructionFlag.FLOAT_MAJOR) && !allInstructionSet[i].hasFlag(AVM2InstructionFlag.FLOAT_MAJOR)) { //Prefer without float:
                     instructionSet[opCode] = allInstructionSet[i];
                 }
             }
@@ -716,26 +839,103 @@ public class AVM2Code implements Cloneable {
 
     }
 
-    public static final String IDENTOPEN = "/*IDENTOPEN*/";
+    /**
+     * To source call counter.
+     */
+    private int toSourceCount = 0;
 
-    public static final String IDENTCLOSE = "/*IDENTCLOSE*/";
+    /**
+     * Converts operand type to string.
+     *
+     * @param ot Operand type
+     * @return Operand type as string
+     */
+    public static String operandTypeSizeToString(int ot) {
+        int sizeType = ot & 0xff00;
+        switch (sizeType) {
+            case OPT_U30:
+                return "U30";
+            case OPT_S16:
+                return "S16";
+            case OPT_U8:
+                return "U8";
+            case OPT_S8:
+                return "S8";
+            case OPT_S24:
+                return "S24";
+            case OPT_CASE_OFFSETS:
+                return "S24(=n), S24[n]";
+        }
+        return "";
+    }
 
+    /**
+     * Converts operand type to string.
+     *
+     * @param ot Operand type
+     * @param withTypeSize Whether to include type size
+     * @return Operand type as string
+     */
+    public static String operandTypeToString(int ot, boolean withTypeSize) {
+        String typeSize = operandTypeSizeToString(ot);
+        if (ot == OPT_CASE_OFFSETS) {
+            return "number" + (withTypeSize ? "(U30)" : "") + ", offset" + (withTypeSize ? "(S24)" : "") + ", offset" + (withTypeSize ? "(S24)" : "") + ", ...";
+        }
+        if (operandDataTypeIdentifiers.containsKey(ot)) {
+            String dataType = operandDataTypeIdentifiers.get(ot);
+            return dataType + (withTypeSize ? "(" + typeSize + ")" : "");
+        } else {
+            return typeSize;
+        }
+
+    }
+
+    /**
+     * Constructs AVM2Code object.
+     */
     public AVM2Code() {
         code = new ArrayList<>();
     }
 
+    /**
+     * Constructs AVM2Code object.
+     *
+     * @param capacity Capacity
+     */
     public AVM2Code(int capacity) {
         code = new ArrayList<>(capacity);
     }
 
+    /**
+     * Constructs AVM2Code object.
+     *
+     * @param instructions List of instructions
+     */
     public AVM2Code(ArrayList<AVM2Instruction> instructions) {
         code = instructions;
     }
 
+    /**
+     * Executes the code.
+     *
+     * @param arguments Local registers values
+     * @param constants Constant pool
+     * @return Result of the execution
+     * @throws AVM2ExecutionException On execution error
+     */
     public Object execute(HashMap<Integer, Object> arguments, AVM2ConstantPool constants) throws AVM2ExecutionException {
         return execute(arguments, constants, null);
     }
 
+    /**
+     * Executes the code.
+     *
+     * @param arguments Local registers values
+     * @param constants Constant pool
+     * @param runtimeInfo Runtime information
+     * @return Result of the execution
+     * @throws AVM2ExecutionException On execution error
+     */
     public Object execute(HashMap<Integer, Object> arguments, AVM2ConstantPool constants, AVM2RuntimeInfo runtimeInfo) throws AVM2ExecutionException {
         int pos = 0;
         LocalDataArea lda = new LocalDataArea();
@@ -774,11 +974,27 @@ public class AVM2Code implements Cloneable {
         return Undefined.INSTANCE;
     }
 
+    /**
+     * Calculates the line debug file/line info and sets it to the instructions.
+     *
+     * @param abc ABC
+     */
     public void calculateDebugFileLine(ABC abc) {
-        calculateDebugFileLine(null, 0, 0, abc, new HashSet<>());
+        calculateDebugFileLine(null, 0, 0, abc, new HashSet<>(), new HashSet<>());
     }
 
-    private boolean calculateDebugFileLine(String debugFile, int debugLine, int pos, ABC abc, Set<Integer> seen) {
+    /**
+     * Calculates the line debug file/line info and sets it to the instructions.
+     *
+     * @param debugFile Debug file
+     * @param debugLine Debug line
+     * @param pos Position
+     * @param abc ABC
+     * @param seen Seen instructions
+     * @param seenMethods Seen methods
+     * @return True of seen.
+     */
+    private boolean calculateDebugFileLine(String debugFile, int debugLine, int pos, ABC abc, Set<Integer> seen, Set<Integer> seenMethods) {
         while (pos < code.size()) {
             AVM2Instruction ins = code.get(pos);
             if (seen.contains(pos)) {
@@ -801,10 +1017,15 @@ public class AVM2Code implements Cloneable {
                 //Only analyze NewFunction objects that are not immediately discarded by Pop.
                 //This avoids bogus functions used in obfuscation or special compilers that can lead to infinite recursion.
                 if ((pos + 1 < code.size()) && !(code.get(pos + 1).definition instanceof PopIns)) {
-                    MethodBody innerBody = abc.findBody(ins.operands[0]);
-                    if (innerBody != null) { //Ignore functions without body
-                        innerBody.getCode().calculateDebugFileLine(debugFile, debugLine, 0, abc, new HashSet<>());
+                    int newMethodInfo = ins.operands[0];
+                    if (!seenMethods.contains(newMethodInfo)) { //avoid recursion
+                        MethodBody innerBody = abc.findBody(newMethodInfo);
+                        if (innerBody != null) { //Ignore functions without body
+                            seenMethods.add(newMethodInfo);
+                            innerBody.getCode().calculateDebugFileLine(debugFile, debugLine, 0, abc, new HashSet<>(), seenMethods);
+                        }
                     }
+
                 }
             }
 
@@ -824,7 +1045,7 @@ public class AVM2Code implements Cloneable {
             } else if (ins.definition instanceof IfTypeIns) {
                 try {
                     int newpos = adr2pos(ins.getTargetAddress());
-                    calculateDebugFileLine(debugFile, debugLine, newpos, abc, seen);
+                    calculateDebugFileLine(debugFile, debugLine, newpos, abc, seen, seenMethods);
                 } catch (ConvertException ex) {
                     return false;
                 }
@@ -836,7 +1057,7 @@ public class AVM2Code implements Cloneable {
                     }
                     try {
                         int newpos = adr2pos(pos2adr(pos) + ins.operands[i]);
-                        if (!calculateDebugFileLine(debugFile, debugLine, newpos, abc, seen)) {
+                        if (!calculateDebugFileLine(debugFile, debugLine, newpos, abc, seen, seenMethods)) {
                             return false;
                         }
                     } catch (ConvertException ex) {
@@ -852,10 +1073,11 @@ public class AVM2Code implements Cloneable {
     /**
      * Removes nonexistent indices to constants from instruction operands.
      *
-     * @param constants
+     * @param constants Constant pool
      */
     public void removeWrongIndices(AVM2ConstantPool constants) {
-        for (AVM2Instruction ins : code) {
+        //This is DANGEROUS as it may alter instruction size which may lead to incorrect jump offsets!!!
+        /*for (AVM2Instruction ins : code) {
             for (int i = 0; i < ins.definition.operands.length; i++) {
                 if (ins.definition.operands[i] == DAT_MULTINAME_INDEX && ins.operands[i] >= constants.getMultinameCount()) {
                     ins.operands[i] = 0;
@@ -873,15 +1095,22 @@ public class AVM2Code implements Cloneable {
                     ins.operands[i] = 0;
                 }
             }
-        }
+        }*/
     }
 
+    /**
+     * Constructs AVM2Code object from ABC input stream.
+     *
+     * @param ais ABC input stream
+     * @param body Method body
+     * @throws IOException On I/O error
+     */
     public AVM2Code(ABCInputStream ais, MethodBody body) throws IOException {
         Map<Long, AVM2Instruction> codeMap = new HashMap<>();
         DumpInfo diParent = ais.dumpInfo;
         List<Long> addresses = new ArrayList<>();
         //Do not add new jumps when processing these addresses (unreachable code,etc.)
-        List<Long> unAdresses = new ArrayList<>();
+        List<Long> unAddresses = new ArrayList<>();
         //Handle lookupswitches at the end - they can be invalid. Handle other instruction first so we can decide lookupswitch to be invalid based on other instructions inside it
         //Flashplayer does not check casecount in lookupswitch instruction so the instruction can "be" long and over other instructions
         List<Long> switchAddresses = new ArrayList<>();
@@ -894,14 +1123,13 @@ public class AVM2Code implements Cloneable {
         addresses.add(startPos);
         if (body != null) {
             for (ABCException e : body.exceptions) {
-                addresses.add((long) e.start);
-                addresses.add((long) e.end);
+                //do not process e.start and e.end - they can be not on an instruction boundary
                 addresses.add((long) e.target);
             }
         }
 
         loopaddr:
-        while (!addresses.isEmpty() || !switchAddresses.isEmpty() || !unAdresses.isEmpty()) {
+        while (!addresses.isEmpty() || !switchAddresses.isEmpty() || !unAddresses.isEmpty()) {
             long address;
             boolean isSwitch = false;
             boolean handleJumps = true;
@@ -911,11 +1139,10 @@ public class AVM2Code implements Cloneable {
                 address = switchAddresses.remove(0);
                 isSwitch = true;
             } else {
-                address = unAdresses.remove(0);
+                address = unAddresses.remove(0);
                 handleJumps = false;
             }
-            if (address < startPos) // no jump outside block
-            {
+            if (address < startPos) { // no jump outside block            
                 continue;
             }
             try {
@@ -1030,7 +1257,7 @@ public class AVM2Code implements Cloneable {
                                 if (handleJumps) {
                                     long target = ais.getPosition() + actualOperands[0];
                                     addresses.add(target);
-                                    unAdresses.add(ais.getPosition());
+                                    unAddresses.add(ais.getPosition());
                                     continue loopaddr;
                                 } else {
                                     actualOperands[0] = 0;
@@ -1039,7 +1266,7 @@ public class AVM2Code implements Cloneable {
 
                             if (instr.isExitInstruction()) { //do not process jumps if there is return/throw instruction
                                 if (handleJumps) {
-                                    unAdresses.add(ais.getPosition());
+                                    unAddresses.add(ais.getPosition());
                                     continue loopaddr;
                                 }
                             }
@@ -1050,7 +1277,7 @@ public class AVM2Code implements Cloneable {
                                     for (int c = 2; c < actualOperands.length; c++) {
                                         addresses.add(startOffset + actualOperands[c]);
                                     }
-                                    unAdresses.add(ais.getPosition());
+                                    unAddresses.add(ais.getPosition());
                                     continue loopaddr;
                                 } else {
                                     int swlen = (int) (endOffset - startOffset);
@@ -1094,21 +1321,43 @@ public class AVM2Code implements Cloneable {
         }
     }
 
+    /**
+     * Trim code list to size.
+     */
     public void compact() {
         if (code instanceof ArrayList) {
             ((ArrayList) code).trimToSize();
         }
     }
 
+    /**
+     * Sets instruction operand.
+     *
+     * @param ip Instruction pointer
+     * @param operandIndex Operand index
+     * @param value Value
+     * @param body Method body
+     */
     public void setInstructionOperand(int ip, int operandIndex, int value, MethodBody body) {
         int oldVal = code.get(ip).operands[ip];
         code.get(ip).operands[ip] = value;
     }
 
+    /**
+     * Gets code bytes.
+     *
+     * @return Code bytes
+     */
     public byte[] getBytes() {
         return getBytes(null);
     }
 
+    /**
+     * Gets code bytes.
+     *
+     * @param origBytes Original bytes
+     * @return Code bytes
+     */
     public byte[] getBytes(byte[] origBytes) {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
@@ -1124,10 +1373,14 @@ public class AVM2Code implements Cloneable {
                 cos.write(instruction.getBytes());
             }
         } catch (IOException ex) {
+            //ignored
         }
         return bos.toByteArray();
     }
 
+    /**
+     * Sets instruction addresses by their position.
+     */
     public void markOffsets() {
         long address = 0;
         for (int i = 0; i < code.size(); i++) {
@@ -1136,6 +1389,11 @@ public class AVM2Code implements Cloneable {
         }
     }
 
+    /**
+     * To string.
+     *
+     * @return String
+     */
     @Override
     public String toString() {
         StringBuilder s = new StringBuilder();
@@ -1146,102 +1404,77 @@ public class AVM2Code implements Cloneable {
         return s.toString();
     }
 
-    public String toASMSource() {
-        return toASMSource(new AVM2ConstantPool());
+    /**
+     * Converts code to ASM source.
+     *
+     * @param abc ABC
+     * @return ASM source
+     */
+    public String toASMSource(ABC abc) {
+        return toASMSource(abc, abc.constants);
     }
 
-    public String toASMSource(AVM2ConstantPool constants) {
+    /**
+     * Converts code to ASM source.
+     *
+     * @param abc ABC
+     * @param constants Constant pool
+     * @return ASM source
+     */
+    public String toASMSource(ABC abc, AVM2ConstantPool constants) {
         HighlightedTextWriter writer = new HighlightedTextWriter(Configuration.getCodeFormatting(), false);
-        toASMSource(constants, null, null, new ArrayList<>(), ScriptExportMode.PCODE, writer);
+        toASMSource(abc, constants, null, null, new ArrayList<>(), ScriptExportMode.PCODE, writer);
+        writer.finishHilights();
         return writer.toString();
     }
 
-    public GraphTextWriter toASMSource(AVM2ConstantPool constants, MethodInfo info, MethodBody body, ScriptExportMode exportMode, GraphTextWriter writer) {
-        return toASMSource(constants, info, body, new ArrayList<>(), exportMode, writer);
+    /**
+     * Converts code to ASM source.
+     *
+     * @param abc ABC
+     * @param constants Constant pool
+     * @param info Method info
+     * @param body Method body
+     * @param exportMode Export mode
+     * @param writer Writer
+     * @return Writer
+     */
+    public GraphTextWriter toASMSource(ABC abc, AVM2ConstantPool constants, MethodInfo info, MethodBody body, ScriptExportMode exportMode, GraphTextWriter writer) {
+        return toASMSource(abc, constants, info, body, new ArrayList<>(), exportMode, writer);
     }
 
-    public GraphTextWriter toASMSource(AVM2ConstantPool constants, MethodInfo info, MethodBody body, List<Integer> outputMap, ScriptExportMode exportMode, GraphTextWriter writer) {
+    /**
+     * Converts code to ASM source.
+     *
+     * @param abc ABC
+     * @param constants Constant pool
+     * @param info Method info
+     * @param body Method body
+     * @param outputMap Output map - list of ips
+     * @param exportMode Export mode
+     * @param writer Writer
+     * @return Writer
+     */
+    public GraphTextWriter toASMSource(ABC abc, AVM2ConstantPool constants, MethodInfo info, MethodBody body, List<Integer> outputMap, ScriptExportMode exportMode, GraphTextWriter writer) {
 
         if (info != null) {
-            writer.appendNoHilight("method").newLine();
-            writer.appendNoHilight("name ");
-            writer.hilightSpecial(info.name_index == 0 ? "null" : "\"" + Helper.escapeActionScriptString(info.getName(constants)) + "\"", HighlightSpecialType.METHOD_NAME);
+            writer.appendNoHilight("method");
+            if (Configuration.indentAs3PCode.get()) {
+                writer.indent();
+            }
             writer.newLine();
-            if (info.flagExplicit()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("EXPLICIT", HighlightSpecialType.FLAG_EXPLICIT);
-                writer.newLine();
-            }
-            if (info.flagHas_optional()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("HAS_OPTIONAL", HighlightSpecialType.FLAG_HAS_OPTIONAL);
-                writer.newLine();
-            }
-            if (info.flagHas_paramnames()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("HAS_PARAM_NAMES", HighlightSpecialType.FLAG_HAS_PARAM_NAMES);
-                writer.newLine();
-            }
-            if (info.flagIgnore_rest()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("EXPLICIT", HighlightSpecialType.FLAG_IGNORE_REST);
-                writer.newLine();
-            }
-            if (info.flagNeed_activation()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("NEED_ACTIVATION", HighlightSpecialType.FLAG_NEED_ACTIVATION);
-                writer.newLine();
-            }
-            if (info.flagNeed_arguments()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("NEED_ARGUMENTS", HighlightSpecialType.FLAG_NEED_ARGUMENTS);
-                writer.newLine();
-            }
-            if (info.flagNeed_rest()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("NEED_REST", HighlightSpecialType.FLAG_NEED_REST);
-                writer.newLine();
-            }
-            if (info.flagSetsdxns()) {
-                writer.appendNoHilight("flag ");
-                writer.hilightSpecial("SET_DXNS", HighlightSpecialType.FLAG_SET_DXNS);
-                writer.newLine();
-            }
-            for (int p = 0; p < info.param_types.length; p++) {
-                writer.appendNoHilight("param ");
-                writer.hilightSpecial(constants.multinameToString(info.param_types[p]), HighlightSpecialType.PARAM, p);
-                writer.newLine();
-            }
-            if (info.flagHas_paramnames()) {
-                for (int n : info.paramNames) {
-                    writer.appendNoHilight("paramname ");
-                    if (n == 0) {
-                        writer.appendNoHilight("null");
-                    } else {
-                        writer.appendNoHilight("\"");
-                        writer.appendNoHilight(constants.getString(n));
-                        writer.appendNoHilight("\"");
-                    }
-                    writer.newLine();
-                }
-            }
-            if (info.flagHas_optional()) {
-                for (int i = 0; i < info.optional.length; i++) {
-                    ValueKind vk = info.optional[i];
-                    writer.appendNoHilight("optional ");
-                    writer.hilightSpecial(vk.toString(constants), HighlightSpecialType.OPTIONAL, i);
-                    writer.newLine();
-                }
-            }
-            writer.appendNoHilight("returns ");
-            writer.hilightSpecial(constants.multinameToString(info.ret_type), HighlightSpecialType.RETURNS);
-            writer.newLine();
+
+            info.toASMSource(abc, writer);
         }
         writer.newLine();
 
         Set<Long> importantOffsets = getImportantOffsets(body, true);
         if (body != null) {
-            writer.appendNoHilight("body").newLine();
+            writer.appendNoHilight("body");
+            if (Configuration.indentAs3PCode.get()) {
+                writer.indent();
+            }
+            writer.newLine();
 
             writer.appendNoHilight("maxstack ");
             writer.appendNoHilight(body.max_stack);
@@ -1259,35 +1492,23 @@ public class AVM2Code implements Cloneable {
             writer.appendNoHilight(body.max_scope_depth);
             writer.newLine();
 
-            for (int e = 0; e < body.exceptions.length; e++) {
-                ABCException exception = body.exceptions[e];
-                writer.appendNoHilight("try");
-
-                writer.appendNoHilight(" from ");
-                writer.appendNoHilight("ofs");
-                writer.appendNoHilight(Helper.formatAddress(exception.start));
-
-                writer.appendNoHilight(" to ");
-                writer.appendNoHilight("ofs");
-                writer.appendNoHilight(Helper.formatAddress(exception.end));
-
-                writer.appendNoHilight(" target ");
-                writer.appendNoHilight("ofs");
-                writer.appendNoHilight(Helper.formatAddress(exception.target));
-
-                writer.appendNoHilight(" type ");
-                writer.hilightSpecial(exception.type_index == 0 ? "null" : constants.getMultiname(exception.type_index).toString(constants, new ArrayList<>()), HighlightSpecialType.TRY_TYPE, e);
-
-                writer.appendNoHilight(" name ");
-                writer.hilightSpecial(exception.name_index == 0 ? "null" : constants.getMultiname(exception.name_index).toString(constants, new ArrayList<>()), HighlightSpecialType.TRY_NAME, e);
-                writer.newLine();
+            for (Trait t : body.traits.traits) {
+                t.convertTraitHeader(abc, writer);
+                if (Configuration.indentAs3PCode.get()) {
+                    writer.unindent();
+                }
+                writer.appendNoHilight("end ; trait").newLine();
             }
         }
 
         writer.newLine();
-        writer.appendNoHilight("code").newLine();
+        writer.appendNoHilight("code");
+        if (Configuration.indentAs3PCode.get()) {
+            writer.indent();
+        }
+        writer.newLine();
         int ip = 0;
-        int largeLimit = 20000;
+        int largeLimit = Configuration.limitAs3PCodeOffsetMatching.get();
         boolean markOffsets = code.size() <= largeLimit;
 
         if (exportMode == ScriptExportMode.HEX) {
@@ -1301,7 +1522,19 @@ public class AVM2Code implements Cloneable {
                     writer.newLine();
                 }
                 if (Configuration.showAllAddresses.get() || importantOffsets.contains(addr)) {
-                    writer.appendNoHilight("ofs" + Helper.formatAddress(addr) + ":");
+                    String label = "ofs" + Helper.formatAddress(addr) + ":";
+                    if (Configuration.labelOnSeparateLineAs3PCode.get() && Configuration.indentAs3PCode.get()) {
+                        writer.unindent().unindent().unindent();
+                    }
+
+                    writer.appendNoHilight(label);
+
+                    if (Configuration.labelOnSeparateLineAs3PCode.get()) {
+                        writer.newLine();
+                        if (Configuration.indentAs3PCode.get()) {
+                            writer.indent().indent().indent();
+                        }
+                    }
                 }
                 /*for (int e = 0; e < body.exceptions.length; e++) {
                  if (body.exceptions[e].start == ofs) {
@@ -1330,24 +1563,66 @@ public class AVM2Code implements Cloneable {
         } else if (exportMode == ScriptExportMode.CONSTANTS) {
             writer.appendNoHilight("Constant export mode is not supported.").newLine();
         }
+        if (Configuration.indentAs3PCode.get()) {
+            writer.unindent();
+        }
         writer.appendNoHilight("end ; code").newLine();
         if (body != null) {
+            for (int e = 0; e < body.exceptions.length; e++) {
+                ABCException exception = body.exceptions[e];
+                writer.appendNoHilight("try");
+
+                //Note: start and end address can be not on instruction boundary - call adr2pos( nearest=true) to make them legal
+                writer.appendNoHilight(" from ");
+                writer.appendNoHilight("ofs");
+                writer.appendNoHilight(Helper.formatAddress(pos2adr(adr2pos(exception.start, true))));
+
+                writer.appendNoHilight(" to ");
+                writer.appendNoHilight("ofs");
+                writer.appendNoHilight(Helper.formatAddress(pos2adr(adr2pos(exception.end, true))));
+
+                writer.appendNoHilight(" target ");
+                writer.appendNoHilight("ofs");
+                writer.appendNoHilight(Helper.formatAddress(exception.target));
+
+                writer.appendNoHilight(" type ");
+                writer.hilightSpecial(exception.type_index == 0 ? "null" : constants.getMultiname(exception.type_index).toString(constants, new ArrayList<>()), HighlightSpecialType.TRY_TYPE, e);
+
+                writer.appendNoHilight(" name ");
+                writer.hilightSpecial(exception.name_index == 0 ? "null" : constants.getMultiname(exception.name_index).toString(constants, new ArrayList<>()), HighlightSpecialType.TRY_NAME, e);
+
+                writer.appendNoHilight(" end");
+                writer.newLine();
+            }
+            if (Configuration.indentAs3PCode.get()) {
+                writer.unindent();
+            }
             writer.appendNoHilight("end ; body").newLine();
         }
         if (info != null) {
+            if (Configuration.indentAs3PCode.get()) {
+                writer.unindent();
+            }
             writer.appendNoHilight("end ; method").newLine();
         }
 
         return writer;
     }
 
+    /**
+     * Gets important offsets.
+     *
+     * @param body Method body
+     * @param tryEnds Whether to include try ends
+     * @return Important offsets
+     */
     public Set<Long> getImportantOffsets(MethodBody body, boolean tryEnds) {
         Set<Long> ret = new HashSet<>();
         if (body != null) {
             for (ABCException exception : body.exceptions) {
-                ret.add((long) exception.start);
+                ret.add((long) pos2adr(adr2pos(exception.start, true)));
                 if (tryEnds) {
-                    ret.add((long) exception.end);
+                    ret.add((long) pos2adr(adr2pos(exception.end, true)));
                 }
                 ret.add((long) exception.target);
             }
@@ -1360,6 +1635,13 @@ public class AVM2Code implements Cloneable {
         return ret;
     }
 
+    /**
+     * Gets instruction at specific address.
+     *
+     * @param address Address
+     * @return Instruction or null if not found
+     * @throws ConvertException On convert error
+     */
     public AVM2Instruction adr2ins(long address) throws ConvertException {
         int pos = adr2pos(address, false);
         if (pos == code.size()) {
@@ -1370,10 +1652,25 @@ public class AVM2Code implements Cloneable {
         return code.get(pos);
     }
 
+    /**
+     * Converts address to position.
+     *
+     * @param address Address
+     * @return Position
+     * @throws ConvertException On convert error
+     */
     public int adr2pos(long address) throws ConvertException {
         return adr2pos(address, false);
     }
 
+    /**
+     * Converts address to position.
+     *
+     * @param address Address
+     * @param nearest Whether to find nearest position
+     * @return Position
+     * @throws ConvertException On convert error
+     */
     public int adr2pos(long address, boolean nearest) throws ConvertException {
         int ret = adr2posNoEx(address);
         if (ret < 0) {
@@ -1385,6 +1682,12 @@ public class AVM2Code implements Cloneable {
         return ret;
     }
 
+    /**
+     * Converts address to position without throwing an exception.
+     *
+     * @param address Address
+     * @return Position
+     */
     private int adr2posNoEx(long address) {
         int min = 0;
         int max = code.size() - 1;
@@ -1408,6 +1711,12 @@ public class AVM2Code implements Cloneable {
         return -min - 1;
     }
 
+    /**
+     * Converts position to address.
+     *
+     * @param pos Position
+     * @return Address
+     */
     public long pos2adr(int pos) {
         if (pos == code.size()) {
             return getEndOffset();
@@ -1415,6 +1724,11 @@ public class AVM2Code implements Cloneable {
         return (int) code.get(pos).getAddress();
     }
 
+    /**
+     * Gets end address after the last instruction.
+     *
+     * @return End address
+     */
     public long getEndOffset() {
         if (code.isEmpty()) {
             return 0;
@@ -1425,113 +1739,125 @@ public class AVM2Code implements Cloneable {
     }
 
     /**
-     * Test for killed register. CalcKilledStats must be called before
+     * Gets local register names from debug info.
      *
-     * @param regName
-     * @param start
-     * @param end
-     * @return
+     * @param abc ABC
+     * @param maxRegs Maximal register id
+     * @return Map from register index to name
      */
-    public boolean isKilled(int regName, int start, int end) {
-        if (!killedRegs.containsKey(regName)) {
-            return false;
-        }
-        for (int ip : killedRegs.get(regName)) {
-            if (ip >= start && ip <= end) {
-                return true;
-            }
-        }
-        return false;
-    }
+    public Map<Integer, String> getLocalRegNamesFromDebug(ABC abc, int maxRegs) {
+        Map<Integer, String> regIndexToName = new HashMap<>();
+        Map<String, Integer> regNameToIndex = new HashMap<>();
 
-    private int toSourceCount = 0;
-
-    public Map<Integer, String> getLocalRegNamesFromDebug(ABC abc) {
-        Map<Integer, String> localRegNames = new HashMap<>();
+        Set<String> reservedRegNames = new HashSet<>();
+        for (int i = 0; i < maxRegs; i++) {
+            reservedRegNames.add(String.format(Configuration.registerNameFormat.get(), i));
+        }
 
         for (AVM2Instruction ins : code) {
             if (ins.definition instanceof DebugIns) {
                 if (ins.operands[0] == 1) {
                     String v = abc.constants.getString(ins.operands[1]);
-                    // Same name already exists, it may be wrong names inserted by obfuscator
-                    if (localRegNames.values().contains(v)) {
-                        return new HashMap<>();
+
+                    if (reservedRegNames.contains(v)) {
+                        //do not allow reassigning reserved _loc%d_ format to other local regs
+                        continue;
                     }
-                    localRegNames.put(ins.operands[2] + 1, v);
+
+                    int regIndex = ins.operands[2] + 1;
+
+                    // Same name already exists, it may be wrong names inserted by obfuscator
+                    if (regNameToIndex.containsKey(v)) {
+                        int existingIndex = regNameToIndex.get(v);
+                        if (existingIndex != regIndex) { //if it exists and has different regIndex
+                            return new HashMap<>(); //ignore debug info
+                        }
+                        //it may exist and had same reg index, this is okay          
+                    }
+                    regNameToIndex.put(v, regIndex);
+                    regIndexToName.put(regIndex, v);
                 }
             }
         }
 
         // TODO: Make this immune to using existing multinames (?)
-        return localRegNames;
+        return regIndexToName;
     }
 
-    private Map<Integer, Set<Integer>> killedRegs = new HashMap<>();
-
-    public void calcKilledStats(MethodBody body) throws InterruptedException {
-        killedRegs.clear();
-        HashMap<Integer, List<Integer>> vis = visitCode(body);
-
-        for (int k = 0; k < code.size(); k++) {
-            if (vis.get(k).isEmpty()) {
-                continue;
-            }
-            if (code.get(k).definition instanceof KillIns) {
-                int regid = code.get(k).operands[0];
-                if (!killedRegs.containsKey(regid)) {
-                    killedRegs.put(regid, new HashSet<>());
-                }
-                killedRegs.get(regid).add(k);
-            }
-        }
-    }
-
-    public List<GraphTargetItem> clearTemporaryRegisters(List<GraphTargetItem> input) {
-        List<GraphTargetItem> output = new ArrayList<>(input);
-        for (int i = 0; i < output.size(); i++) {
-            if (output.get(i) instanceof SetLocalAVM2Item) {
-                if (isKilled(((SetLocalAVM2Item) output.get(i)).regIndex, 0, code.size() - 1)) {
-                    SetLocalAVM2Item lsi = (SetLocalAVM2Item) output.get(i);
-                    if (i + 1 < output.size()) {
-                        if (output.get(i + 1) instanceof ExitItem) {
-                            GraphTargetItem rv = output.get(i + 1);
-                            if (rv.value instanceof LocalRegAVM2Item) {
-                                LocalRegAVM2Item lr = (LocalRegAVM2Item) rv.value;
-                                if (lr.regIndex == lsi.regIndex) {
-                                    rv.value = lsi.value;
-                                }
-                            }
-                        }
-                    }
-                    output.remove(i);
-                    i--;
-                }
-            } else if (output.get(i) instanceof WithAVM2Item) {
-                clearTemporaryRegisters(((WithAVM2Item) output.get(i)).items);
-            }
-        }
-        return output;
-    }
-
-    public int fixIPAfterDebugLine(int ip) {
+    /**
+     * Gets position after debugline instruction and after jump instruction.
+     *
+     * @param ip Current position
+     * @return New position
+     */
+    public int getIpThroughJumpAndDebugLine(int ip) {
         if (code.isEmpty()) {
             return ip;
         }
         if (ip >= code.size()) {
             return code.size() - 1;
         }
-        while (code.get(ip).definition instanceof DebugLineIns) {
-            ip++;
+        while (ip < code.size()) {
+            if (code.get(ip).definition instanceof DebugLineIns) {
+                ip++;
+            } else if (code.get(ip).definition instanceof JumpIns) {
+                ip = adr2pos(pos2adr(ip + 1) + code.get(ip).operands[0]);
+            } else {
+                break;
+            }
+        }
+        if (ip >= code.size()) {
+            return code.size() - 1;
         }
         return ip;
     }
 
-    public long fixAddrAfterDebugLine(long addr) throws ConvertException {
-        return pos2adr(fixIPAfterDebugLine(adr2pos(addr, true)));
+    /**
+     * Gets address after debugline instruction and after jump instruction.
+     *
+     * @param addr Current address
+     * @return New address
+     * @throws ConvertException On convert error
+     */
+    public long getAddrThroughJumpAndDebugLine(long addr) throws ConvertException {
+        return pos2adr(getIpThroughJumpAndDebugLine(adr2pos(addr, true)));
     }
 
-    public ConvertOutput toSourceOutput(boolean thisHasDefaultToPrimitive, Reference<GraphSourceItem> lineStartItem, String path, GraphPart part, boolean processJumps, boolean isStatic, int scriptIndex, int classIndex, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, ScopeStack scopeStack, ABC abc, MethodBody body, int start, int end, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames, boolean[] visited, HashMap<Integer, Integer> localRegAssigmentIps, HashMap<Integer, List<Integer>> refs) throws ConvertException, InterruptedException {
-        calcKilledStats(body);
+    /**
+     * Converts to source output.
+     *
+     * @param swfVersion SWF version
+     * @param switchParts Switch parts
+     * @param callStack Call stack
+     * @param abcIndex ABC indexing
+     * @param setLocalPosToGetLocalPos Set local position to get local position
+     * @param thisHasDefaultToPrimitive Whether this has default to primitive
+     * @param lineStartItem Line start item
+     * @param path Path
+     * @param part Part
+     * @param processJumps Whether to process jumps
+     * @param isStatic Whether is static
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param localRegs Local registers
+     * @param stack Stack
+     * @param scopeStack Scope stack
+     * @param localScopeStack Local scope stack
+     * @param abc ABC
+     * @param body Method body
+     * @param start Start
+     * @param end End
+     * @param localRegNames Local register names
+     * @param localRegTypes Local register types
+     * @param fullyQualifiedNames Fully qualified names
+     * @param visited Visited
+     * @param localRegAssignmentIps Local register assignment IPs
+     * @param bottomStackSetLocals Set locals on bottom of the stack
+     * @return Convert output
+     * @throws ConvertException On convert error
+     * @throws InterruptedException On interrupt
+     */
+    public ConvertOutput toSourceOutput(int swfVersion, Set<GraphPart> switchParts, List<MethodBody> callStack, AbcIndexing abcIndex, Map<Integer, Set<Integer>> setLocalPosToGetLocalPos, boolean thisHasDefaultToPrimitive, Reference<GraphSourceItem> lineStartItem, String path, GraphPart part, boolean processJumps, boolean isStatic, int scriptIndex, int classIndex, HashMap<Integer, GraphTargetItem> localRegs, TranslateStack stack, ScopeStack scopeStack, ScopeStack localScopeStack, ABC abc, MethodBody body, int start, int end, HashMap<Integer, String> localRegNames, HashMap<Integer, GraphTargetItem> localRegTypes, List<DottedChain> fullyQualifiedNames, boolean[] visited, HashMap<Integer, Integer> localRegAssignmentIps, LinkedIdentityHashSet<SetLocalAVM2Item> bottomStackSetLocals) throws ConvertException, InterruptedException {
         boolean debugMode = DEBUG_MODE;
         if (debugMode) {
             System.err.println("OPEN SubSource:" + start + "-" + end + " " + code.get(start).toString() + " to " + code.get(end).toString());
@@ -1576,7 +1902,7 @@ public class AVM2Code implements Cloneable {
             }
 
             if (debugMode) {
-                System.err.println("translating ip " + ip + " ins " + ins.toString() + " stack:" + stack.toString() + " scopeStack:" + scopeStack.toString());
+                System.err.println("translating ip " + ip + " ins " + ins.toString() + " stack:" + stack.toString() + " localScopeStack:" + localScopeStack.toString());
             }
             if (ins.definition instanceof NewFunctionIns) {
                 if (ip + 1 <= end) {
@@ -1586,70 +1912,41 @@ public class AVM2Code implements Cloneable {
                     }
                 }
             }
-            /*if ((ip + 8 < code.size())) { //return in finally clause
-             if (ins.definition instanceof SetLocalTypeIns) {
-             if (code.get(ip + 1).definition instanceof PushByteIns) {
-             AVM2Instruction jmp = code.get(ip + 2);
-             if (jmp.definition instanceof JumpIns) {
-             if (jmp.operands[0] == 0) {
-             if (code.get(ip + 3).definition instanceof LabelIns) {
-             if (code.get(ip + 4).definition instanceof PopIns) {
-             if (code.get(ip + 5).definition instanceof LabelIns) {
-             AVM2Instruction gl = code.get(ip + 6);
-             if (gl.definition instanceof GetLocalTypeIns) {
-             if (((GetLocalTypeIns) gl.definition).getRegisterId(gl) == ((SetLocalTypeIns) ins.definition).getRegisterId(ins)) {
-             AVM2Instruction ki = code.get(ip + 7);
-             if (ki.definition instanceof KillIns) {
-             if (ki.operands[0] == ((SetLocalTypeIns) ins.definition).getRegisterId(ins)) {
-             if (code.get(ip + 8).definition instanceof ReturnValueIns) {
-             ip = ip + 8;
-             continue;
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }
-             }//*/
 
- /*if ((ip + 2 < code.size()) && (ins.definition instanceof NewCatchIns)) { // Filling local register in catch clause
-             if (code.get(ip + 1).definition instanceof DupIns) {
-             if (code.get(ip + 2).definition instanceof SetLocalTypeIns) {
-             ins.definition.translate(isStatic, classIndex, localRegs, stack, scopeStack, constants, ins, method_info, output, body, abc, localRegNames, fullyQualifiedNames);
-             ip += 3;
-             continue;
-             }
-             }
-             }*/
-            if ((ins.definition instanceof GetLocalTypeIns) && (!output.isEmpty()) && (output.get(output.size() - 1) instanceof SetLocalAVM2Item) && (((SetLocalAVM2Item) output.get(output.size() - 1)).regIndex == ((GetLocalTypeIns) ins.definition).getRegisterId(ins)) && isKilled(((SetLocalAVM2Item) output.get(output.size() - 1)).regIndex, start, end)) {
-                SetLocalAVM2Item slt = (SetLocalAVM2Item) output.remove(output.size() - 1);
-                stack.push(slt.getValue());
-                ip++;
-            } else if ((ins.definition instanceof SetLocalTypeIns) && (ip + 1 <= end) && (isKilled(((SetLocalTypeIns) ins.definition).getRegisterId(ins), ip, end))) { // set_local_x,get_local_x..kill x
-                AVM2Instruction insAfter = code.get(ip + 1);
-                if ((insAfter.definition instanceof GetLocalTypeIns) && (((GetLocalTypeIns) insAfter.definition).getRegisterId(insAfter) == ((SetLocalTypeIns) ins.definition).getRegisterId(ins))) {
-                    GraphTargetItem before = stack.peek();
-                    ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
-                    stack.push(before);
-                    ip += 2;
-                    continue iploop;
-                } else {
-                    ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
-                    ip++;
-                    continue iploop;
+            if (ins.definition instanceof KillIns) {
+                int killedReg = ins.operands[0];
+                if (output.size() >= 2 && !stack.isEmpty()) {
+                    if ((stack.peek() instanceof LocalRegAVM2Item) && (((LocalRegAVM2Item) stack.peek()).regIndex == killedReg)) {
+                        if (output.get(output.size() - 1) instanceof SetPropertyAVM2Item) {
+                            SetPropertyAVM2Item setProp = (SetPropertyAVM2Item) output.get(output.size() - 1);
+                            if ((output.get(output.size() - 2) instanceof SetLocalAVM2Item) && (((SetLocalAVM2Item) output.get(output.size() - 2)).regIndex == killedReg)) {
+                                SetLocalAVM2Item setLoc = (SetLocalAVM2Item) output.get(output.size() - 2);
+                                AVM2Instruction insAfter = ip + 1 < code.size() ? code.get(ip + 1) : null;
+                                if (insAfter != null && (insAfter.definition instanceof PopIns)) {
+                                    if (setProp.value instanceof LocalRegAVM2Item) {
+                                        LocalRegAVM2Item locReg = (LocalRegAVM2Item) setProp.value;
+                                        if (locReg.regIndex == killedReg) {
+                                            setProp.value = setLoc.value;
+                                            output.remove(output.size() - 2);
+                                            stack.pop();
+                                            ip += 2;
+                                            continue;
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                    }
                 }
-            } else if (ins.definition instanceof DupIns) {
+            }
+            /*
+            if (ins.definition instanceof DupIns) {
                 int nextPos;
                 do {
                     AVM2Instruction insAfter = ip + 1 < code.size() ? code.get(ip + 1) : null;
                     if (insAfter == null) {
-                        ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
+                        ins.definition.translate(switchParts, callStack, abcIndex, setLocalPosToGetLocalPos, lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, localScopeStack, ins, output, body, abc, localRegNames, localRegTypes, fullyQualifiedNames, path, localRegAssignmentIps, ip, this, thisHasDefaultToPrimitive, bottomStackSetLocals);
                         ip++;
                         break;
                     }
@@ -1670,68 +1967,17 @@ public class AVM2Code implements Cloneable {
                     } else if (processJumps && (insAfter.definition instanceof IfTrueIns)) {
                         //stack.add("(" + stack.pop() + ")||");
                         isAnd = false;
-                    } else if (insAfter.definition instanceof SetLocalTypeIns) {
-                        // chained assignments
-                        int reg = (((SetLocalTypeIns) insAfter.definition).getRegisterId(insAfter));
-                        for (int t = ip + 1; t <= end - 1; t++) {
-                            if (code.get(t).definition instanceof KillIns) {
-                                if (code.get(t).operands[0] == reg) {
-                                    break;
-                                }
-                            }
-                            if (code.get(t).definition instanceof GetLocalTypeIns) {
-                                if (((GetLocalTypeIns) code.get(t).definition).getRegisterId(code.get(t)) == reg) {
-                                    if (code.get(t + 1).definition instanceof KillIns) {
-                                        if (code.get(t + 1).operands[0] == reg) {
-                                            ConvertOutput assignment = toSourceOutput(thisHasDefaultToPrimitive, lineStartItem, path, part, processJumps, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, abc, body, ip + 2, t - 1, localRegNames, fullyQualifiedNames, visited, localRegAssigmentIps, refs);
-                                            if (!assignment.output.isEmpty()) {
-                                                GraphTargetItem tar = assignment.output.remove(assignment.output.size() - 1);
-                                                tar.firstPart = part;
-                                                stack.push(tar);
-                                                ip = t + 2;
-
-                                                continue iploop;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (!isKilled(reg, 0, end)) {
-                            GraphTargetItem vx = stack.pop().getThroughDuplicate();
-                            int dupCnt = 1;
-                            for (int i = ip - 1; i >= start; i--) {
-                                if (code.get(i).definition instanceof DupIns) {
-                                    if (stack.isEmpty()) {
-                                        break; // FIXME?o
-                                    }
-                                    stack.pop();
-                                    dupCnt++;
-                                    //stack.push(v);
-                                } else {
-                                    break;
-                                }
-                            }
-                            for (int i = 0; i < dupCnt; i++) {
-                                stack.push(new LocalRegAVM2Item(ins, (AVM2Instruction) lineStartItem.getVal(), reg, vx));
-                            }
-                            stack.push(vx);
-                        } else {
-                            ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
-                        }
-                        ip++;
-                        break;
-                        //}
-
                     } else {
-                        ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
+                        ins.definition.translate(switchParts, callStack, abcIndex, setLocalPosToGetLocalPos, lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, localScopeStack, ins, output, body, abc, localRegNames, localRegTypes, fullyQualifiedNames, path, localRegAssignmentIps, ip, this, thisHasDefaultToPrimitive, bottomStackSetLocals);
                         ip++;
                         break;
-                        //throw new ConvertException("Unknown pattern after DUP:" + insComparsion.toString());
+                        //throw new ConvertException("Unknown pattern after DUP:" + insComparison.toString());
                     }
                 } while (ins.definition instanceof DupIns);
-            } else if ((ins.definition instanceof ReturnValueIns) || (ins.definition instanceof ReturnVoidIns) || (ins.definition instanceof ThrowIns)) {
-                ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
+            } else
+             */
+            if ((ins.definition instanceof ReturnValueIns) || (ins.definition instanceof ReturnVoidIns) || (ins.definition instanceof ThrowIns)) {
+                ins.definition.translate(swfVersion, switchParts, callStack, abcIndex, setLocalPosToGetLocalPos, lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, localScopeStack, ins, output, body, abc, localRegNames, localRegTypes, fullyQualifiedNames, path, localRegAssignmentIps, ip, this, thisHasDefaultToPrimitive, bottomStackSetLocals);
                 //ip = end + 1;
                 break;
             } else if (ins.definition instanceof NewFunctionIns) {
@@ -1749,12 +1995,12 @@ public class AVM2Code implements Cloneable {
                                 }
                                 AVM2Instruction psco = code.get(ip + 1 + plus);
                                 if (psco.definition instanceof GetScopeObjectIns) {
-                                    if (psco.operands[0] == scopeStack.size() - 1) {
+                                    if (psco.operands[0] == localScopeStack.size() - 1) {
                                         if (code.get(ip + plus + 2).definition instanceof SwapIns) {
                                             if (code.get(ip + plus + 4).definition instanceof PopScopeIns) {
                                                 if (code.get(ip + plus + 3).definition instanceof SetPropertyIns) {
                                                     functionName = abc.constants.getMultiname(code.get(ip + plus + 3).operands[0]).getName(abc.constants, fullyQualifiedNames, true, true);
-                                                    scopeStack.pop();// with
+                                                    localScopeStack.pop(); // with
                                                     output.remove(output.size() - 1); // with
                                                     ip = ip + plus + 4; // +1 below
                                                 }
@@ -1767,13 +2013,17 @@ public class AVM2Code implements Cloneable {
                     }
                 }
                 // What to do when hasDup is false?
-                ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
+                ins.definition.translate(swfVersion, switchParts, callStack, abcIndex, setLocalPosToGetLocalPos, lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, localScopeStack, ins, output, body, abc, localRegNames, localRegTypes, fullyQualifiedNames, path, localRegAssignmentIps, ip, this, thisHasDefaultToPrimitive, bottomStackSetLocals);
                 NewFunctionAVM2Item nft = (NewFunctionAVM2Item) stack.peek();
                 nft.functionName = functionName;
                 ip++;
             } else {
                 try {
-                    ins.definition.translate(lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, ins, output, body, abc, localRegNames, fullyQualifiedNames, path, localRegAssigmentIps, ip, refs, this, thisHasDefaultToPrimitive);
+                    ins.definition.translate(swfVersion, switchParts, callStack, abcIndex, setLocalPosToGetLocalPos, lineStartItem, isStatic, scriptIndex, classIndex, localRegs, stack, scopeStack, localScopeStack, ins, output, body, abc, localRegNames, localRegTypes, fullyQualifiedNames, path, localRegAssignmentIps, ip, this, thisHasDefaultToPrimitive, bottomStackSetLocals);
+
+                    if (stack.size() == 1 && (stack.peek() instanceof SetLocalAVM2Item)) {
+                        bottomStackSetLocals.add((SetLocalAVM2Item) stack.peek());
+                    }
                 } catch (RuntimeException re) {
                     /*String last="";
                      int len=5;
@@ -1803,6 +2053,11 @@ public class AVM2Code implements Cloneable {
          }*/
     }
 
+    /**
+     * Gets number of registers used in the code.
+     *
+     * @return Number of registers
+     */
     public int getRegisterCount() {
         int maxRegister = -1;
         for (AVM2Instruction ins : code) {
@@ -1820,6 +2075,13 @@ public class AVM2Code implements Cloneable {
         return maxRegister + 1;
     }
 
+    /**
+     * Gets types of local registers.
+     *
+     * @param constants Constant pool
+     * @param fullyQualifiedNames Fully qualified names
+     * @return Map from register id to type
+     */
     public HashMap<Integer, GraphTargetItem> getLocalRegTypes(AVM2ConstantPool constants, List<DottedChain> fullyQualifiedNames) {
         HashMap<Integer, GraphTargetItem> ret = new HashMap<>();
         AVM2Instruction prev = null;
@@ -1837,27 +2099,53 @@ public class AVM2Code implements Cloneable {
 
     }
 
+    /**
+     * Slot class
+     */
     private class Slot {
 
+        /**
+         * Scope
+         */
         public final GraphTargetItem scope;
 
+        /**
+         * Multiname
+         */
         public final Multiname multiname;
 
+        /**
+         * Constructs a new Slot.
+         *
+         * @param scope Scope
+         * @param multiname Multiname
+         */
         public Slot(GraphTargetItem scope, Multiname multiname) {
             this.scope = scope;
             this.multiname = multiname;
         }
 
+        /**
+         * Equals.
+         *
+         * @param obj Object
+         * @return True if equal
+         */
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof Slot) {
                 Slot slot = (Slot) obj;
-                return (slot.scope.getThroughRegister() == scope.getThroughRegister())
+                return (Objects.equals(slot.scope.getThroughRegister(), scope.getThroughRegister()))
                         && (slot.multiname == multiname);
             }
             return false;
         }
 
+        /**
+         * Hash code.
+         *
+         * @return Hash code
+         */
         @Override
         public int hashCode() {
             int hash = 7;
@@ -1867,10 +2155,23 @@ public class AVM2Code implements Cloneable {
         }
     }
 
+    /**
+     * Initializes counter of toSource calls.
+     */
     public void initToSource() {
         toSourceCount = 0;
     }
 
+    /**
+     * Handles declaration of registers.
+     *
+     * @param minreg Minimal register id
+     * @param assignment Assignment
+     * @param declaredRegisters Declared registers
+     * @param declaredSlots Declared slots
+     * @param reg Register id
+     * @return Assignment
+     */
     private GraphTargetItem handleDeclareReg(int minreg, GraphTargetItem assignment, DeclarationAVM2Item[] declaredRegisters, List<Slot> declaredSlots, int reg) {
 
         //do not add declarations for reserved local registers like function arguments
@@ -1880,13 +2181,22 @@ public class AVM2Code implements Cloneable {
         GraphTargetItem vtype = TypeItem.UNBOUNDED;
         if (assignment.value instanceof ConvertAVM2Item) {
             vtype = ((ConvertAVM2Item) assignment.value).type;
+        } else if (assignment.value instanceof CoerceAVM2Item) {
+            vtype = ((CoerceAVM2Item) assignment.value).typeObj;
+        } else if (assignment instanceof LocalRegAVM2Item) { //for..in
+            vtype = ((LocalRegAVM2Item) assignment).type;
+        } else if (assignment instanceof GetSlotAVM2Item) { //for..in
+            vtype = ((GetSlotAVM2Item) assignment).slotType;
+        } else if ((assignment.value instanceof SimpleValue) && ((SimpleValue) assignment.value).isSimpleValue()) {
+            vtype = assignment.value.returnType();
+        } else if (assignment.value instanceof GetLexAVM2Item) {
+            vtype = assignment.value.returnType();
         }
 
-        if (vtype.equals(TypeItem.UNBOUNDED) && (assignment.value instanceof CoerceAVM2Item)) {
-            vtype = ((CoerceAVM2Item) assignment.value).typeObj;
-        }
-        if (vtype.equals(TypeItem.UNBOUNDED) && (assignment.value instanceof SimpleValue) && ((SimpleValue) assignment.value).isSimpleValue()) {
-            vtype = assignment.value.returnType();
+        boolean isNull = false;
+        if (vtype.equals(new TypeItem(DottedChain.NULL))) {
+            vtype = TypeItem.UNBOUNDED;
+            isNull = true;
         }
 
         if (declaredRegisters[reg] == null) {
@@ -1894,11 +2204,15 @@ public class AVM2Code implements Cloneable {
             if (assignment instanceof SetTypeAVM2Item) {
                 ((SetTypeAVM2Item) assignment).setDeclaration(declaredRegisters[reg]);
             }
+            declaredRegisters[reg].typeIsNull = isNull;
             return declaredRegisters[reg];
         }
 
-        if (declaredRegisters[reg].type == TypeItem.UNBOUNDED) {
-
+        if (declaredRegisters[reg].typeIsNull) {
+            declaredRegisters[reg].type = vtype;
+            declaredRegisters[reg].typeIsNull = isNull;
+        } else if (declaredRegisters[reg].type == TypeItem.UNBOUNDED) {
+            //empty
         } else if (!declaredRegisters[reg].type.equals(vtype)) { //already declared with different type
             declaredRegisters[reg].type = TypeItem.UNBOUNDED;
         }
@@ -1910,96 +2224,329 @@ public class AVM2Code implements Cloneable {
         return assignment;
     }
 
-    private GraphTargetItem injectDeclarations(int minreg, GraphTargetItem ti, DeclarationAVM2Item[] declaredRegisters, List<Slot> declaredSlots, List<DeclarationAVM2Item> declaredSlotsDec, ABC abc, MethodBody body) {
-        if (ti.value != null) {
-            ti.value = injectDeclarations(minreg, ti.value, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
+    /**
+     * Calculates index of property name in the slot list.
+     *
+     * @param list List of slots
+     * @param propertyName Property name
+     * @param abc ABC
+     * @return Index of property name in the slot list or -1 if not found
+     */
+    private int slotListIndexOf(List<Slot> list, String propertyName, ABC abc) {
+        int index = 0;
+        for (Slot s : list) {
+            if (propertyName.equals(abc.constants.getString(s.multiname.name_index))) {
+                return index;
+            }
+            index++;
         }
-        //TODO: walk whole tree... some walker?
-        if (ti instanceof IfItem) {
-            ((IfItem) ti).expression = injectDeclarations(minreg, ((IfItem) ti).expression, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
+        return -1;
+    }
+
+    /**
+     * Injects declarations of registers/slots/properties etc.
+     *
+     * @param level Level
+     * @param paramNames Parameter names
+     * @param items Items
+     * @param minreg Minimal register id
+     * @param declaredRegisters Declared registers
+     * @param declaredSlots Declared slots
+     * @param declaredSlotsDec Declared slots declarations
+     * @param declaredProperties Declared properties
+     * @param declaredPropsDec Declared properties declarations
+     * @param abc ABC
+     * @param body Method body
+     */
+    private void injectDeclarations(int level, List<String> paramNames, List<GraphTargetItem> items, int minreg, DeclarationAVM2Item[] declaredRegisters, List<Slot> declaredSlots, List<DeclarationAVM2Item> declaredSlotsDec, List<String> declaredProperties, List<DeclarationAVM2Item> declaredPropsDec, ABC abc, MethodBody body) {
+        //boolean hasActivation = abc.method_info.get(body.method_info).flagNeed_activation();
+        Map<String, TraitSlotConst> traits = new LinkedHashMap<>();
+        for (Trait t : body.traits.traits) {
+            if (t instanceof TraitSlotConst) {
+                TraitSlotConst tsc = (TraitSlotConst) t;
+                Multiname tratMultiname = abc.constants.getMultiname(tsc.name_index);
+                String bodyTraitName = tratMultiname.getName(abc.constants, new ArrayList<>(), true, true);
+                traits.put(bodyTraitName, tsc);
+            }
         }
-        if (ti instanceof BinaryOpItem) {
-            ((BinaryOpItem) ti).leftSide = injectDeclarations(minreg, ((BinaryOpItem) ti).leftSide, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
-            ((BinaryOpItem) ti).rightSide = injectDeclarations(minreg, ((BinaryOpItem) ti).rightSide, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
-        }
-        if (ti instanceof ForEachInAVM2Item) {
-            ForEachInAVM2Item fei = (ForEachInAVM2Item) ti;
-            if (fei.expression.object instanceof LocalRegAVM2Item) {
-                int reg = ((LocalRegAVM2Item) fei.expression.object).regIndex;
-                if (declaredRegisters[reg] == null) {
-                    fei.expression.object = handleDeclareReg(minreg, fei.expression.object, declaredRegisters, declaredSlots, reg);
+        if (level == 0) {
+            Set<String> beginDeclaredSlotsNames = new LinkedHashSet<>();
+
+            for (int i = 0; i < items.size(); i++) {
+                GraphTargetItem item = items.get(i);
+                String propNameStr = null;
+                GraphTargetItem value = null;
+                if (item instanceof StoreNewActivationAVM2Item) { //Special case
+                    continue;
+                } else if (item instanceof SetSlotAVM2Item) {
+                    SetSlotAVM2Item ss = (SetSlotAVM2Item) item;
+                    if (ss.slotName == null) {
+                        break;
+                    }
+                    propNameStr = ss.slotName.getName(abc.constants, new ArrayList<>(), true, true);
+                    value = ss.value;
+                } else if (item instanceof SetPropertyAVM2Item) {
+                    SetPropertyAVM2Item sp = (SetPropertyAVM2Item) item;
+                    if (sp.object instanceof FindPropertyAVM2Item) {
+                        if (sp.propertyName instanceof FullMultinameAVM2Item) {
+                            FullMultinameAVM2Item propName = (FullMultinameAVM2Item) sp.propertyName;
+                            propNameStr = propName.resolvedMultinameName;
+                            value = sp.value;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+
+                value = value.getNotCoerced();
+                /*if (!((value instanceof NumberValueAVM2Item)
+                        || (value instanceof StringAVM2Item)
+                        || (value instanceof TrueItem)
+                        || (value instanceof FalseItem)
+                        || (value instanceof UndefinedAVM2Item)
+                        || (value instanceof NullAVM2Item)
+                        || (value instanceof NewFunctionAVM2Item))) {
+                    break;
+                }*/
+                Reference<Boolean> hasPrevReference = new Reference<>(false);
+                value.visitRecursivelyNoBlock(new AbstractGraphTargetRecursiveVisitor() {
+                    @Override
+                    public void visit(GraphTargetItem subItem, Stack<GraphTargetItem> parentStack) {
+                        Multiname propertyMultiName;
+                        String propertyName;
+                        if (subItem instanceof GetPropertyAVM2Item) {
+                            GetPropertyAVM2Item propItem = (GetPropertyAVM2Item) subItem;
+                            if (propItem.object instanceof FindPropertyAVM2Item) {
+                                propertyMultiName = abc.constants.getMultiname(((FullMultinameAVM2Item) propItem.propertyName).multinameIndex);
+                            } else {
+                                return;
+                            }
+                        } else if (subItem instanceof GetLexAVM2Item) {
+                            GetLexAVM2Item lex = (GetLexAVM2Item) subItem;
+                            propertyMultiName = lex.propertyName;
+                        } else {
+                            return;
+                        }
+                        propertyName = propertyMultiName.getName(abc.constants, new ArrayList<>(), true, true);
+
+                        if (traits.containsKey(propertyName)) {
+                            Slot sl = new Slot(new NewActivationAVM2Item(null, null), propertyMultiName);
+                            if (!paramNames.contains(propertyName)) {
+                                if (traits.containsKey(propertyName) && !beginDeclaredSlotsNames.contains(propertyName)) {
+                                    hasPrevReference.setVal(true);
+                                }
+                            }
+                        }
+                    }
+                });
+                if (hasPrevReference.getVal()) {
+                    break;
+                }
+
+                beginDeclaredSlotsNames.add(propNameStr);
+            }
+
+            int pos = 0;
+            for (String traitName : traits.keySet()) {
+                if (!paramNames.contains(traitName)) {
+                    if (!beginDeclaredSlotsNames.contains(traitName)) {
+                        Slot sl = new Slot(new NewActivationAVM2Item(null, null), abc.constants.getMultiname(traits.get(traitName).name_index));
+                        TraitSlotConst tsc = (TraitSlotConst) traits.get(traitName);
+                        GraphTargetItem type = AbcIndexing.multinameToType(tsc.type_index, abc.constants);
+                        DeclarationAVM2Item d = new DeclarationAVM2Item(new GetLexAVM2Item(null, null, sl.multiname, abc.constants, type, TypeItem.UNBOUNDED /*?*/, false), type);
+                        declaredSlotsDec.add(d);
+                        declaredSlots.add(sl);
+
+                        d.showValue = false;
+                        items.add(pos, d);
+                        pos++;
+
+                        declaredPropsDec.add(d);
+                        declaredProperties.add(traitName);
+                    }
                 }
             }
         }
-        if (ti instanceof ForInAVM2Item) {
-            ForInAVM2Item fi = (ForInAVM2Item) ti;
-            if (fi.expression.object instanceof LocalRegAVM2Item) {
-                int reg = ((LocalRegAVM2Item) fi.expression.object).regIndex;
-                fi.expression.object = handleDeclareReg(minreg, fi.expression.object, declaredRegisters, declaredSlots, reg);
-                //nowdeclaredRegs.add(reg);
+        for (int i = 0; i < items.size(); i++) {
+            GraphTargetItem currentItem = items.get(i);
+            List<GraphTargetItem> itemsOnLine = new ArrayList<>();
+            itemsOnLine.add(currentItem);
+            currentItem.visitRecursivelyNoBlock(new AbstractGraphTargetRecursiveVisitor() {
+                @Override
+                public void visit(GraphTargetItem item, Stack<GraphTargetItem> parentStack) {
+                    itemsOnLine.add(item);
+                }
+            });
 
+            if (currentItem instanceof ForEachInAVM2Item) {
+                ForEachInAVM2Item fei = (ForEachInAVM2Item) currentItem;
+                if (fei.expression.object instanceof LocalRegAVM2Item) {
+                    int reg = ((LocalRegAVM2Item) fei.expression.object).regIndex;
+                    if (declaredRegisters[reg] == null) {
+                        fei.expression.object = handleDeclareReg(minreg, fei.expression.object, declaredRegisters, declaredSlots, reg);
+                    }
+                }
             }
-        }
-        if (ti instanceof Block) {
-            Block bl = (Block) ti;
-            for (List<GraphTargetItem> s : bl.getSubs()) {
-                injectDeclarations(minreg, s, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
+            if (currentItem instanceof ForInAVM2Item) {
+                ForInAVM2Item fi = (ForInAVM2Item) currentItem;
+                if (fi.expression.object instanceof LocalRegAVM2Item) {
+                    int reg = ((LocalRegAVM2Item) fi.expression.object).regIndex;
+                    fi.expression.object = handleDeclareReg(minreg, fi.expression.object, declaredRegisters, declaredSlots, reg);
+                }
             }
-        }
-        if (ti instanceof SetLocalAVM2Item) {
-            int reg = ((SetLocalAVM2Item) ti).regIndex;
-            ti = handleDeclareReg(minreg, ti, declaredRegisters, declaredSlots, reg);
-            return ti;
-        }
-        if (ti instanceof SetSlotAVM2Item) {
-            SetSlotAVM2Item ssti = (SetSlotAVM2Item) ti;
-            Slot sl = new Slot(ssti.scope, ssti.slotName);
-            if (!declaredSlots.contains(sl)) {
-                GraphTargetItem type = TypeItem.UNBOUNDED;
-                for (int t = 0; t < body.traits.traits.size(); t++) {
-                    if (body.traits.traits.get(t).getName(abc) == sl.multiname) {
-                        if (body.traits.traits.get(t) instanceof TraitSlotConst) {
-                            type = PropertyAVM2Item.multinameToType(((TraitSlotConst) body.traits.traits.get(t)).type_index, abc.constants);
+
+            for (GraphTargetItem subItem : itemsOnLine) {
+                if (subItem instanceof SetLocalAVM2Item) {
+                    SetLocalAVM2Item setLocal = (SetLocalAVM2Item) subItem;
+                    int reg = setLocal.regIndex;
+                    GraphTargetItem dec = handleDeclareReg(minreg, subItem, declaredRegisters, declaredSlots, reg);
+                    if (dec != subItem) { //declared right now
+                        if (subItem == currentItem) {
+                            items.set(i, dec);
+                        } else {
+                            ((DeclarationAVM2Item) dec).showValue = false;
+                            items.add(i, dec);
+                            i++;
                         }
                     }
                 }
-                DeclarationAVM2Item d = new DeclarationAVM2Item(ti, type);
-                ssti.setDeclaration(d);
-                declaredSlotsDec.add(d);
-                declaredSlots.add(sl);
-                return d;
-                //nowdeclaredSlots.add(sl);
-            } else {
-                int idx = declaredSlots.indexOf(sl);
-                ssti.setDeclaration(declaredSlotsDec.get(idx));
+                if (subItem instanceof SetPropertyAVM2Item) {
+                    SetPropertyAVM2Item sp = (SetPropertyAVM2Item) subItem;
+                    if (sp.object instanceof FindPropertyAVM2Item) {
+                        if (sp.propertyName instanceof FullMultinameAVM2Item) {
+                            FullMultinameAVM2Item propName = (FullMultinameAVM2Item) sp.propertyName;
+                            if (!paramNames.contains(propName.resolvedMultinameName)) {
+                                if (!declaredProperties.contains(propName.resolvedMultinameName)) {
+                                    if (traits.containsKey(propName.resolvedMultinameName)) {
+                                        TraitSlotConst tsc = traits.get(propName.resolvedMultinameName);
+                                        GraphTargetItem type = AbcIndexing.multinameToType(tsc.type_index, abc.constants);
+                                        DeclarationAVM2Item d = new DeclarationAVM2Item(subItem, type);
+                                        sp.setDeclaration(d);
+                                        declaredPropsDec.add(d);
+                                        declaredProperties.add(propName.resolvedMultinameName);
+
+                                        Slot sl = new Slot(new NewActivationAVM2Item(null, null), abc.constants.getMultiname(tsc.name_index));
+                                        declaredSlotsDec.add(d);
+                                        declaredSlots.add(sl);
+
+                                        if (subItem == currentItem) {
+                                            items.set(i, d);
+                                        } else {
+                                            d.showValue = false;
+                                            items.add(i, d);
+                                            i++;
+                                        }
+                                    }
+                                } else {
+                                    int idx = declaredProperties.indexOf(propName.resolvedMultinameName);
+                                    sp.setDeclaration(declaredPropsDec.get(idx));
+                                }
+                            }
+                        }
+                    }
+                }
+                if (subItem instanceof SetSlotAVM2Item) {
+                    SetSlotAVM2Item ssti = (SetSlotAVM2Item) subItem;
+                    if (ssti.scope instanceof NewActivationAVM2Item) {
+                        Slot sl = new Slot(ssti.scope, ssti.slotName);
+                        String slotPropertyName = sl.multiname.getName(abc.constants, new ArrayList<>(), true, false);
+                        if (!paramNames.contains(slotPropertyName)) {
+
+                            int index = slotListIndexOf(declaredSlots, slotPropertyName, abc);
+                            if (index == -1) {
+                                GraphTargetItem type = TypeItem.UNBOUNDED;
+                                if (traits.containsKey(slotPropertyName)) {
+                                    type = AbcIndexing.multinameToType(traits.get(slotPropertyName).type_index, abc.constants);
+                                }
+                                DeclarationAVM2Item d = new DeclarationAVM2Item(subItem, type);
+                                ssti.setDeclaration(d);
+                                declaredSlotsDec.add(d);
+                                declaredSlots.add(sl);
+
+                                declaredPropsDec.add(d);
+                                declaredProperties.add(slotPropertyName);
+
+                                if (subItem == currentItem) {
+                                    items.set(i, d);
+                                } else {
+                                    d.showValue = false;
+                                    items.add(i, d);
+                                    i++;
+                                }
+
+                            } else {
+                                ssti.setDeclaration(declaredSlotsDec.get(index));
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (currentItem instanceof Block) {
+                Block blk = (Block) currentItem;
+                for (List<GraphTargetItem> sub : blk.getSubs()) {
+                    injectDeclarations(level + 1, paramNames, sub, minreg, declaredRegisters, declaredSlots, declaredSlotsDec, declaredProperties, declaredPropsDec, abc, body);
+                }
             }
         }
-        return ti;
-    }
 
-    private void injectDeclarations(int minreg, List<GraphTargetItem> list, DeclarationAVM2Item[] declaredRegisters, List<Slot> declaredSlots, List<DeclarationAVM2Item> declaredSlotsDec, ABC abc, MethodBody body) {
-        //List<Integer> nowdeclaredRegs=new ArrayList<>();
-        //List<Slot> nowdeclaredSlots=new ArrayList<>();
-        for (int i = 0; i < list.size(); i++) {
-            GraphTargetItem ti = list.get(i);
-            GraphTargetItem ti2 = injectDeclarations(minreg, ti, declaredRegisters, declaredSlots, declaredSlotsDec, abc, body);
-            if (ti != ti2) {
-                list.set(i, ti2);
+        /*if (level == 0) {
+            int pos = 0;
+            for (String propertyName : traits.keySet()) {
+                if (!paramNames.contains(propertyName)) {
+                    Slot sl = new Slot(new NewActivationAVM2Item(null, null), abc.constants.getMultiname(traits.get(propertyName).name_index));
+                    if (!declaredSlots.contains(sl) && !declaredProperties.contains(propertyName)) {
+                        TraitSlotConst tsc = traits.get(propertyName);
+                        GraphTargetItem type = PropertyAVM2Item.multinameToType(tsc.type_index, abc.constants);
+                        DeclarationAVM2Item d = new DeclarationAVM2Item(new GetLexAVM2Item(null, null, sl.multiname, abc.constants), type);
+                        declaredSlotsDec.add(d);
+                        declaredSlots.add(sl);
+
+                        d.showValue = false;
+                        items.add(pos, d);
+                        pos++;
+                    }
+                }
             }
-        }
-
-        /*
-         //undeclare registers at the end of the block?
-         for(int reg:nowdeclaredRegs){
-         declaredRegisters[reg] = false;
-         }
-
-         for(Slot s:nowdeclaredSlots){
-         declaredSlots.remove(s);
-         }*/
+        }*/
     }
 
-    public List<GraphTargetItem> toGraphTargetItems(boolean thisHasDefaultToPrimitive, ConvertData convertData, String path, int methodIndex, boolean isStatic, int scriptIndex, int classIndex, ABC abc, MethodBody body, HashMap<Integer, String> localRegNames, ScopeStack scopeStack, int initializerType, List<DottedChain> fullyQualifiedNames, List<Traits> initTraits, int staticOperation, HashMap<Integer, Integer> localRegAssigmentIps, HashMap<Integer, List<Integer>> refs) throws InterruptedException {
+    private static interface BlockVisitor {
+
+        public void visitBlock(List<GraphTargetItem> items);
+    }
+
+    /**
+     * Converts code to source - list of GraphTargetItems.
+     *
+     * @param swfVersion SWF version
+     * @param callStack Call stack
+     * @param abcIndex ABC indexing
+     * @param thisHasDefaultToPrimitive True if this has default to primitive
+     * @param convertData Convert data
+     * @param path Path
+     * @param methodIndex Method index
+     * @param isStatic True if static
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param abc ABC
+     * @param body Method body
+     * @param localRegNames Local register names
+     * @param scopeStack Scope stack
+     * @param initializerType Initializer type
+     * @param fullyQualifiedNames Fully qualified names
+     * @param initTraits Initialized traits
+     * @param staticOperation Static operation
+     * @param localRegAssignmentIps Local register assignment IPs
+     * @param initTraitClasses Class ids which traits to init
+     * @return List of GraphTargetItems
+     * @throws InterruptedException On interrupt
+     */
+    public List<GraphTargetItem> toGraphTargetItems(int swfVersion, List<MethodBody> callStack, AbcIndexing abcIndex, boolean thisHasDefaultToPrimitive, ConvertData convertData, String path, int methodIndex, boolean isStatic, int scriptIndex, int classIndex, ABC abc, MethodBody body, HashMap<Integer, String> localRegNames, ScopeStack scopeStack, int initializerType, List<DottedChain> fullyQualifiedNames, Traits initTraits, int staticOperation, HashMap<Integer, Integer> localRegAssignmentIps, List<Integer> initTraitClasses) throws InterruptedException {
         initToSource();
         List<GraphTargetItem> list;
         HashMap<Integer, GraphTargetItem> localRegs = new HashMap<>();
@@ -2008,58 +2555,323 @@ public class AVM2Code implements Cloneable {
         for (int i = 0; i < regCount; i++) {
             localRegs.put(0, new UndefinedAVM2Item(null, null));
         }
+        HashMap<Integer, GraphTargetItem> localRegTypes = new HashMap<>();
+        for (int i = 0; i < abc.method_info.get(methodIndex).param_types.length; i++) {
+            localRegTypes.put(i + 1, AbcIndexing.multinameToType(abc.method_info.get(methodIndex).param_types[i], abc.constants));
+        }
 
-        //try {
-        list = AVM2Graph.translateViaGraph(path, this, abc, body, isStatic, scriptIndex, classIndex, localRegs, scopeStack, localRegNames, fullyQualifiedNames, staticOperation, localRegAssigmentIps, refs, thisHasDefaultToPrimitive);
-
+        try {
+            list = AVM2Graph.translateViaGraph(swfVersion, null, callStack, abcIndex, path, this, abc, body, isStatic, scriptIndex, classIndex, localRegs, scopeStack, localRegNames, localRegTypes, fullyQualifiedNames, staticOperation, localRegAssignmentIps, thisHasDefaultToPrimitive);
+        } catch (SecondPassException spe) {
+            list = AVM2Graph.translateViaGraph(swfVersion, spe.getData(), callStack, abcIndex, path, this, abc, body, isStatic, scriptIndex, classIndex, localRegs, scopeStack, localRegNames, localRegTypes, fullyQualifiedNames, staticOperation, localRegAssignmentIps, thisHasDefaultToPrimitive);
+        }
         if (initTraits != null) {
+
+            Map<Integer, Traits> initClassMultinames = new LinkedHashMap<>();
+            if (initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
+                for (int c : initTraitClasses) {
+                    initClassMultinames.put(abc.instance_info.get(c).name_index, abc.class_info.get(c).static_traits);
+                }
+            }
+            initClassMultinames.put(-1, initTraits);
+
             loopi:
             for (int i = 0; i < list.size(); i++) {
                 GraphTargetItem ti = list.get(i);
+                if (ti instanceof SetSlotAVM2Item) {
+                    SetSlotAVM2Item ss = (SetSlotAVM2Item) ti;
+                    if ((ss.slotObject instanceof GlobalAVM2Item) && (initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER)) {
+                        for (Trait t : initTraits.traits) {
+                            if (t instanceof TraitSlotConst) {
+                                TraitSlotConst tsc = (TraitSlotConst) t;
+                                if (tsc.slot_id == ss.slotIndex) {
+                                    GraphTargetItem value = ss.value;
+                                    if (value != null && !convertData.assignedValues.containsKey(tsc)) {
+                                        if (value instanceof NewFunctionAVM2Item) {
+                                            NewFunctionAVM2Item f = (NewFunctionAVM2Item) value;
+                                            f.functionName = tsc.getName(abc).getName(abc.constants, fullyQualifiedNames, true, true);
+                                        }
+                                        AssignedValue av = new AssignedValue(ti, value, initializerType, methodIndex);
+                                        convertData.assignedValues.put(tsc, av);
+                                        //list.remove(i);
+                                        //i--;
+                                        continue loopi;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /*
+                TODO: All this requires a better care for instance attributes,
+                for example using the assigned values only when it is referenced by const.
+                 */
                 if ((ti instanceof InitPropertyAVM2Item) || (ti instanceof SetPropertyAVM2Item)) {
                     int multinameIndex = 0;
                     GraphTargetItem value = null;
+                    GraphTargetItem obj = null;
                     if (ti instanceof InitPropertyAVM2Item) {
                         multinameIndex = ((InitPropertyAVM2Item) ti).propertyName.multinameIndex;
                         value = ((InitPropertyAVM2Item) ti).value;
+                        obj = ((InitPropertyAVM2Item) ti).object;
                     }
                     if (ti instanceof SetPropertyAVM2Item) {
                         multinameIndex = ((FullMultinameAVM2Item) ((SetPropertyAVM2Item) ti).propertyName).multinameIndex;
                         value = ((SetPropertyAVM2Item) ti).value;
+                        obj = ((SetPropertyAVM2Item) ti).object;
                     }
                     Multiname m = abc.constants.getMultiname(multinameIndex);
-                    for (Traits ts : initTraits) {
-                        for (Trait t : ts.traits) {
-                            Multiname tm = abc.constants.getMultiname(t.name_index);
-                            if (tm != null && tm.equals(m)) {
-                                if ((t instanceof TraitSlotConst)) {
-                                    if (((TraitSlotConst) t).isConst() || initializerType == GraphTextWriter.TRAIT_CLASS_INITIALIZER || initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
-                                        TraitSlotConst tsc = (TraitSlotConst) t;
-                                        if (value != null && !convertData.assignedValues.containsKey(tsc)) {
 
-                                            if (value instanceof NewFunctionAVM2Item) {
-                                                NewFunctionAVM2Item f = (NewFunctionAVM2Item) value;
-                                                f.functionName = tsc.getName(abc).getName(abc.constants, fullyQualifiedNames, true, true);
+                    Multiname om = null;
+                    if (obj instanceof GetPropertyAVM2Item) {
+                        om = abc.constants.getMultiname(((FullMultinameAVM2Item) ((GetPropertyAVM2Item) obj).propertyName).multinameIndex);
+                    }
+                    if (obj instanceof GetLexAVM2Item) {
+                        om = ((GetLexAVM2Item) obj).propertyName;
+                    }
+
+                    for (int classMultiname : initClassMultinames.keySet()) {
+                        Traits ts = initClassMultinames.get(classMultiname);
+                        Multiname cm = classMultiname == -1 ? null : abc.constants.getMultiname(classMultiname);
+                        for (int j = 0; j < ts.traits.size(); j++) {
+                            Trait t = ts.traits.get(j);
+                            Multiname tm = abc.constants.getMultiname(t.name_index);
+                            if (tm != null && tm.equals(m) && (classMultiname == -1 || Objects.equals(om, cm))) {
+                                if ((t instanceof TraitSlotConst)) {
+                                    //if (((TraitSlotConst) t).isConst() || initializerType == GraphTextWriter.TRAIT_CLASS_INITIALIZER || initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) 
+                                    //{
+                                    TraitSlotConst tsc = (TraitSlotConst) t;
+                                    if (value != null && !convertData.assignedValues.containsKey(tsc)) {
+
+                                        if (!isStatic) {
+                                            Set<GraphTargetItem> subItems = value.getAllSubItemsRecursively();
+                                            subItems.add(value);
+                                            List<Multiname> laterMultinames = new ArrayList<>();
+                                            for (int k = j + 1; k < initTraits.traits.size(); k++) {
+                                                int tMultinameIndex = initTraits.traits.get(k).name_index;
+                                                if (tMultinameIndex > 0) {
+                                                    Multiname tMultiname = abc.constants.getMultiname(tMultinameIndex);
+                                                    laterMultinames.add(tMultiname);
+                                                }
                                             }
-                                            AssignedValue av = new AssignedValue(value, initializerType, methodIndex);
-                                            convertData.assignedValues.put(tsc, av);
+                                            for (GraphTargetItem item : subItems) {
+
+                                                //if later slot is referenced, we must add it in constructor instead of direct assignment
+                                                if (item instanceof GetPropertyAVM2Item) {
+                                                    Multiname multiName = abc.constants.getMultiname(((FullMultinameAVM2Item) ((GetPropertyAVM2Item) item).propertyName).multinameIndex);
+                                                    if (laterMultinames.contains(multiName)) {
+                                                        continue loopi;
+                                                    }
+                                                }
+                                                if (item instanceof GetLexAVM2Item) {
+                                                    Multiname multiName = ((GetLexAVM2Item) item).propertyName;
+                                                    if (laterMultinames.contains(multiName)) {
+                                                        continue loopi;
+                                                    }
+                                                }
+
+                                                if (item instanceof LocalRegAVM2Item) { //it is surely in constructor block, not in slot/const
+                                                    continue loopi;
+                                                }
+                                            }
+                                        }
+                                        if (value instanceof NewFunctionAVM2Item) {
+                                            NewFunctionAVM2Item f = (NewFunctionAVM2Item) value;
+                                            f.functionName = tsc.getName(abc).getName(abc.constants, fullyQualifiedNames, true, true);
+                                        }
+                                        AssignedValue av = new AssignedValue(classMultiname == -1 ? ti : null, value, initializerType, methodIndex);
+                                        convertData.assignedValues.put(tsc, av);
+                                        if (!isStatic) {
                                             list.remove(i);
                                             i--;
-                                            continue;
                                         }
+                                        continue loopi;
                                     }
+                                    //}
                                     break;
                                 }
                             }
                         }
                     }
-                } else {
-                    // In obfuscated code, SetLocal instructions comes first
-                    //break;
+                } else if (!isStatic) {
+                    //We will ignore the fact, that in obfuscated code, the constructor can
+                    //start with SetLocal in favor of turning on the deobfuscation...
+                    break;
                 }
             }
         }
+
+        int lastPos = list.size() - 1;
+        if (lastPos < 0) {
+            lastPos = 0;
+        }
+        if ((list.size() > lastPos) && (list.get(lastPos) instanceof ScriptEndItem)) {
+            lastPos--;
+        }
+        if (lastPos < 0) {
+            lastPos = 0;
+        }
+        if ((list.size() > lastPos) && (list.get(lastPos) instanceof ReturnVoidAVM2Item)) {
+            list.remove(lastPos);
+        }
+        if (initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
+            if ((list.size() > lastPos) && (list.get(lastPos) instanceof ReturnValueAVM2Item)) {
+                ReturnValueAVM2Item rv = (ReturnValueAVM2Item) list.get(lastPos);
+                if (rv.value instanceof LocalRegAVM2Item) {
+                    list.remove(lastPos);
+                } else {
+                    list.set(lastPos, rv.value);
+                }
+
+            }
+        }
+
         if (initializerType == GraphTextWriter.TRAIT_CLASS_INITIALIZER || initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
+            Map<GraphTargetItem, AssignedValue> commandToAssigned = new IdentityHashMap<>();
+            Map<GraphTargetItem, TraitSlotConst> commandToTrait = new IdentityHashMap<>();
+            for (TraitSlotConst tsc : convertData.assignedValues.keySet()) {
+                //if on script, do not use traits that belong to class and vice-versa
+                if (initTraits != null && !initTraits.traits.contains(tsc)) {
+                    continue;
+                }
+                AssignedValue asv = convertData.assignedValues.get(tsc);
+                if (asv.command == null) {
+                    TraitSlotConstAVM2Item item = new TraitSlotConstAVM2Item(
+                            null,
+                            null,
+                            tsc,
+                            asv.value,
+                            true,
+                            scriptIndex,
+                            classIndex,
+                            GraphTextWriter.TRAIT_SCRIPT_INITIALIZER,
+                            abc.script_info.get(scriptIndex).init_index,
+                            initTraits.traits.indexOf(tsc)
+                    );
+                    list.add(item);
+                } else {
+                    commandToAssigned.put(asv.command, asv);
+                    commandToTrait.put(asv.command, tsc);
+                }
+            }
+
+            for (int i = 0; i < list.size(); i++) {
+                GraphTargetItem ti = list.get(i);
+                if (commandToAssigned.containsKey(ti)) {
+                    AssignedValue asv = commandToAssigned.get(ti);
+                    TraitSlotConst tsc = commandToTrait.get(ti);
+
+                    int nsKind = tsc.getName(abc).getSimpleNamespaceKind(abc.constants);
+                    if (classIndex == -1 && (nsKind == Namespace.KIND_PACKAGE || nsKind == Namespace.KIND_PACKAGE_INTERNAL)) {
+                        list.remove(i);
+                        i--;
+                        continue;
+                    }
+
+                    TraitSlotConstAVM2Item item = new TraitSlotConstAVM2Item(
+                            ti.getSrc(),
+                            ti.getLineStartItem(),
+                            tsc,
+                            asv.value,
+                            isStatic,
+                            scriptIndex,
+                            classIndex,
+                            initializerType,
+                            methodIndex,
+                            initTraits.traits.indexOf(tsc)
+                    );
+                    list.set(i, item);
+                }
+            }
+
+            if (initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER) {
+
+                //Eliminate all setlocals, can sometimes happen
+                BlockVisitor bv = new BlockVisitor() {
+                    @Override
+                    public void visitBlock(List<GraphTargetItem> items) {
+
+                        for (int i = 0; i < items.size(); i++) {
+                            GraphTargetItem item = items.get(i);
+                            if (item instanceof SetLocalAVM2Item) {
+                                items.set(i, item.value);
+                            }
+
+                            if (item instanceof Block) {
+                                Block b = (Block) item;
+                                for (List<GraphTargetItem> list : b.getSubs()) {
+                                    visitBlock(list);
+                                }
+                            }
+                        }
+                    }
+                };
+                bv.visitBlock(list);
+
+                PackageAVM2Item currentPkg = null;
+                for (int i = 0; i < list.size(); i++) {
+                    GraphTargetItem ti = list.get(i);
+                    if (ti instanceof TraitSlotConstAVM2Item) {
+                        TraitSlotConstAVM2Item tsci = (TraitSlotConstAVM2Item) ti;
+                        Namespace ns = tsci.getTrait().getName(abc).getNamespace(abc.constants);
+                        if (ns.kind == Namespace.KIND_PACKAGE || ns.kind == Namespace.KIND_PACKAGE_INTERNAL) {
+                            String newPkgName = ns.getName(abc.constants).toRawString();
+                            if (currentPkg == null) {
+                                currentPkg = new PackageAVM2Item(new ArrayList<>(), newPkgName);
+                                currentPkg.addItem(tsci);
+                                list.set(i, currentPkg);
+                            } else if (currentPkg.getPackageName().equals(newPkgName)) {
+                                currentPkg.addItem(tsci);
+                                list.remove(i);
+                                i--;
+                            } else {
+                                currentPkg = new PackageAVM2Item(new ArrayList<>(), newPkgName);
+                                currentPkg.addItem(tsci);
+                                list.set(i, currentPkg);
+                            }
+                        }
+                    } else if (currentPkg != null) {
+                        final String currentPkgName = currentPkg.getPackageName();
+                        Reference<Boolean> insidePackage = new Reference<>(true);
+
+                        //Check whether the command references internal traits of other package
+                        ti.visitRecursively(new AbstractGraphTargetVisitor() {
+                            @Override
+                            public boolean visit(GraphTargetItem item) {
+                                if (item instanceof GetSlotAVM2Item) {
+                                    GetSlotAVM2Item gs = (GetSlotAVM2Item) item;
+                                    if ((gs.slotObject instanceof GlobalAVM2Item) && (initializerType == GraphTextWriter.TRAIT_SCRIPT_INITIALIZER)) {
+                                        for (Trait t : initTraits.traits) {
+                                            if (t instanceof TraitSlotConst) {
+                                                TraitSlotConst tsc = (TraitSlotConst) t;
+                                                if (tsc.slot_id == gs.slotIndex) {
+                                                    int nsKind = tsc.getName(abc).getNamespace(abc.constants).kind;
+                                                    if ((nsKind == Namespace.KIND_PACKAGE_INTERNAL
+                                                            && !currentPkgName.equals(tsc.getName(abc).getNamespace(abc.constants).getRawName(abc.constants)))
+                                                            || (nsKind == Namespace.KIND_PRIVATE)) {
+                                                        insidePackage.setVal(false);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                return true;
+                            }
+                        });
+
+                        if (insidePackage.getVal()) {
+                            currentPkg.addItem(ti);
+                            list.remove(i);
+                            i--;
+                        } else {
+                            currentPkg = null;
+                        }
+                    }
+                }
+            }
+
             List<GraphTargetItem> newList = new ArrayList<>();
             for (GraphTargetItem ti : list) {
                 if (!(ti instanceof ReturnVoidAVM2Item)) {
@@ -2087,44 +2899,42 @@ public class AVM2Code implements Cloneable {
                 type = new TypeItem(abc.constants.getMultiname(param_types[i]).getNameWithNamespace(abc.constants, true));
             }
             if (d.length > r) {
-                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null)), type);
+                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null), type), type);
             }
             r++;
         }
         if (abc.method_info.get(body.method_info).flagNeed_arguments()) {
             if (d.length > r) {
-                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null)), TypeItem.ARRAY /*?*/);
+                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null), TypeItem.ARRAY), TypeItem.ARRAY /*?*/);
             }
             r++;
         }
         if (abc.method_info.get(body.method_info).flagNeed_rest()) {
             if (d.length > r) {
-                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null)), TypeItem.ARRAY/*?*/);
+                d[r] = new DeclarationAVM2Item(new SetLocalAVM2Item(null, null, r, new NullAVM2Item(null, null), TypeItem.ARRAY), TypeItem.ARRAY/*?*/);
             }
             r++;
         }
         //
 
         //int minreg = abc.method_info.get(body.method_info).getMaxReservedReg() + 1;
-        injectDeclarations(1, list, d, new ArrayList<>(), new ArrayList<>(), abc, body);
-
-        int lastPos = list.size() - 1;
-        if (lastPos < 0) {
-            lastPos = 0;
+        HashMap<Integer, String> registerNames = body.getLocalRegNames(abc);
+        List<String> paramNamesList = new ArrayList<>();
+        for (int ir = 0; ir < r; ir++) {
+            paramNamesList.add(AVM2Item.localRegName(localRegNames, ir));
         }
-        if ((list.size() > lastPos) && (list.get(lastPos) instanceof ScriptEndItem)) {
-            lastPos--;
-        }
-        if (lastPos < 0) {
-            lastPos = 0;
-        }
-        if ((list.size() > lastPos) && (list.get(lastPos) instanceof ReturnVoidAVM2Item)) {
-            list.remove(lastPos);
-        }
+        injectDeclarations(0, paramNamesList, list, 1, d, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), abc, body);
 
         return list;
     }
 
+    /**
+     * Updates instruction byte count at given address.
+     *
+     * @param instructionAddress Instruction address
+     * @param byteDelta Byte delta
+     * @param body Method body
+     */
     public void updateInstructionByteCountByAddr(long instructionAddress, int byteDelta, MethodBody body) {
         if (byteDelta != 0) {
             updateOffsets(new OffsetUpdater() {
@@ -2151,11 +2961,24 @@ public class AVM2Code implements Cloneable {
         }
     }
 
+    /**
+     * Updates instruction byte count at given position.
+     *
+     * @param pos Position
+     * @param byteDelta Byte delta
+     * @param body Method body
+     */
     public void updateInstructionByteCount(int pos, int byteDelta, MethodBody body) {
         AVM2Instruction instruction = code.get(pos);
         updateInstructionByteCountByAddr(instruction.getAddress(), byteDelta, body);
     }
 
+    /**
+     * Updates offsets (jumps) in the code with given updater.
+     *
+     * @param updater Offset updater
+     * @param body Method body
+     */
     public void updateOffsets(OffsetUpdater updater, MethodBody body) {
         for (int i = 0; i < code.size(); i++) {
             AVM2Instruction ins = code.get(i);
@@ -2166,20 +2989,14 @@ public class AVM2Code implements Cloneable {
                     target = ins.getAddress() + ins.operands[k];
                     ins.operands[k] = updater.updateOperandOffset(ins.getAddress(), target, ins.operands[k]);
                 }
-            } else /*for (int j = 0; j < ins.definition.operands.length; j++) {
-             if (ins.definition.operands[j] == AVM2Code.DAT_OFFSET) {
-             long target = ins.offset + ins.getBytes().length + ins.operands[j];
-             ins.operands[j] = updater.updateOperandOffset(target, ins.operands[j]);
-             }
-             }*/ //Faster, but not so universal
-             if (ins.definition instanceof IfTypeIns) {
-                    long target = ins.getTargetAddress();
-                    try {
-                        ins.operands[0] = updater.updateOperandOffset(ins.getAddress(), target, ins.operands[0]);
-                    } catch (ConvertException cex) {
-                        throw new ConvertException("Invalid offset (" + ins + ")", i);
-                    }
+            } else if (ins.definition instanceof IfTypeIns) {
+                long target = ins.getTargetAddress();
+                try {
+                    ins.operands[0] = updater.updateOperandOffset(ins.getAddress(), target, ins.operands[0]);
+                } catch (ConvertException cex) {
+                    throw new ConvertException("Invalid offset (" + ins + ")", i);
                 }
+            }
             ins.setAddress(updater.updateInstructionOffset(ins.getAddress()));
             //Note: changing operands here does not change instruction byte length as offsets are always S24 (not variable length)
         }
@@ -2193,6 +3010,13 @@ public class AVM2Code implements Cloneable {
         }
     }
 
+    /**
+     * Fixes jumps to invalid addresses.
+     *
+     * @param path Path
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     public void fixJumps(final String path, MethodBody body) throws InterruptedException {
         if (code.isEmpty()) {
             return;
@@ -2223,11 +3047,16 @@ public class AVM2Code implements Cloneable {
             }
         }
         if (someIgnored) {
-            logger.log(Level.WARNING, path + ": One or more invalid jump offsets found in the code. Those instructions were ignored.");
+            logger.log(Level.WARNING, "{0}: One or more invalid jump offsets found in the code. Those instructions were ignored.", path);
         }
         removeIgnored(body);
     }
 
+    /**
+     * Checks for invalid offsets (jumps) in the code.
+     *
+     * @param body Method body
+     */
     public void checkValidOffsets(MethodBody body) {
         updateOffsets(new OffsetUpdater() {
             @Override
@@ -2247,6 +3076,12 @@ public class AVM2Code implements Cloneable {
         }, body);
     }
 
+    /**
+     * Removes instruction at given position.
+     *
+     * @param pos Position
+     * @param body Method body
+     */
     public void removeInstruction(int pos, MethodBody body) {
         if ((pos < 0) || (pos >= code.size())) {
             throw new IndexOutOfBoundsException();
@@ -2295,26 +3130,13 @@ public class AVM2Code implements Cloneable {
     }
 
     /**
-     * Inserts instruction at specified point. Handles offsets properly. Note:
-     * If newinstruction is jump, the offset operand must be handled properly by
-     * caller. All old jump offsets to pos are targeted before new instruction.
-     *
-     * @param pos Position in the list
-     * @param instruction Instruction False means before new instruction
-     * @param body Method body (used for try handling)
-     */
-    public void insertInstruction(int pos, AVM2Instruction instruction, MethodBody body) {
-        insertInstruction(pos, instruction, false, body);
-    }
-
-    /**
      * Replaces instruction by another. Properly handles offsets. Note: If
      * newinstruction is jump, the offset operand must be handled properly by
      * caller.
      *
-     * @param pos
-     * @param instruction
-     * @param body
+     * @param pos Position
+     * @param instruction Instruction
+     * @param body Method body
      */
     public void replaceInstruction(int pos, AVM2Instruction instruction, MethodBody body) {
         AVM2Instruction oldInstruction = code.get(pos);
@@ -2351,9 +3173,22 @@ public class AVM2Code implements Cloneable {
     /**
      * Inserts instruction at specified point. Handles offsets properly. Note:
      * If newinstruction is jump, the offset operand must be handled properly by
+     * caller. All old jump offsets to pos are targeted before new instruction.
+     *
+     * @param pos Position
+     * @param instruction Instruction False means before new instruction
+     * @param body Method body (used for try handling)
+     */
+    public void insertInstruction(int pos, AVM2Instruction instruction, MethodBody body) {
+        insertInstruction(pos, instruction, false, body);
+    }
+
+    /**
+     * Inserts instruction at specified point. Handles offsets properly. Note:
+     * If newinstruction is jump, the offset operand must be handled properly by
      * caller.
      *
-     * @param pos Position in the list
+     * @param pos Position
      * @param instruction Instruction
      * @param mapOffsetsAfterIns Map all jumps to the pos after new instruction?
      * False means before new instruction
@@ -2427,6 +3262,20 @@ public class AVM2Code implements Cloneable {
         //checkValidOffsets(body);
     }
 
+    /**
+     * Removes traps (deobfuscation)
+     *
+     * @param trait Trait
+     * @param methodInfo Method info
+     * @param body Method body
+     * @param abc ABC
+     * @param scriptIndex Script index
+     * @param classIndex Class index
+     * @param isStatic True if static
+     * @param path Path
+     * @return 1
+     * @throws InterruptedException On interrupt
+     */
     public int removeTraps(Trait trait, int methodInfo, MethodBody body, ABC abc, int scriptIndex, int classIndex, boolean isStatic, String path) throws InterruptedException {
         SWFDecompilerPlugin.fireAvm2CodeRemoveTraps(path, classIndex, isStatic, scriptIndex, abc, trait, methodInfo, body);
         try (Statistics s = new Statistics("AVM2DeobfuscatorGetSet")) {
@@ -2441,16 +3290,36 @@ public class AVM2Code implements Cloneable {
         try (Statistics s = new Statistics("AVM2DeobfuscatorJumps")) {
             new AVM2DeobfuscatorJumps().avm2CodeRemoveTraps(path, classIndex, isStatic, scriptIndex, abc, trait, methodInfo, body);
         }
+        try (Statistics s = new Statistics("AVM2DeobfuscatorZeroJumpsNullPushes")) {
+            new AVM2DeobfuscatorZeroJumpsNullPushes().avm2CodeRemoveTraps(path, classIndex, isStatic, scriptIndex, abc, trait, methodInfo, body);
+        }
         return 1;
     }
 
+    /**
+     * Handles register while walking code for stats.
+     *
+     * @param stats Code stats
+     * @param reg Register
+     */
     private void handleRegister(CodeStats stats, int reg) {
         if (reg + 1 > stats.maxlocal) {
             stats.maxlocal = reg + 1;
         }
     }
 
-    private boolean walkCode(CodeStats stats, int pos, int stack, int scope, ABC abc) {
+    /**
+     * Walks code for stats.
+     *
+     * @param stats Code stats
+     * @param pos Position
+     * @param stack Stack
+     * @param scope Scope
+     * @param abc ABC
+     * @param autoFill Auto fill
+     * @return True if success
+     */
+    private boolean walkCode(CodeStats stats, int pos, int stack, int scope, ABC abc, boolean autoFill) {
         while (pos < code.size()) {
             AVM2Instruction ins = code.get(pos);
             if (stats.instructionStats[pos].seen) {
@@ -2460,7 +3329,9 @@ public class AVM2Code implements Cloneable {
 
             if (ins.definition instanceof NewFunctionIns) {
                 MethodBody innerBody = abc.findBody(ins.operands[0]);
-                innerBody.autoFillStats(abc, stats.initscope + (stats.has_activation ? 1 : 0), false);
+                if (autoFill) {
+                    innerBody.autoFillStats(abc, stats.initscope + (stats.has_activation ? 1 : 0), false);
+                }
             }
 
             stats.instructionStats[pos].seen = true;
@@ -2512,6 +3383,9 @@ public class AVM2Code implements Cloneable {
                 // check stack=0
                 return true;
             }
+            if (ins.definition instanceof ThrowIns) {
+                return true;
+            }
             if (ins.definition instanceof JumpIns) {
                 try {
                     pos = adr2pos(ins.getTargetAddress());
@@ -2522,7 +3396,7 @@ public class AVM2Code implements Cloneable {
             } else if (ins.definition instanceof IfTypeIns) {
                 try {
                     int newpos = adr2pos(ins.getTargetAddress());
-                    walkCode(stats, newpos, stack, scope, abc);
+                    walkCode(stats, newpos, stack, scope, abc, autoFill);
                 } catch (ConvertException ex) {
                     return false;
                 }
@@ -2534,7 +3408,7 @@ public class AVM2Code implements Cloneable {
                     }
                     try {
                         int newpos = adr2pos(pos2adr(pos) + ins.operands[i]);
-                        if (!walkCode(stats, newpos, stack, scope, abc)) {
+                        if (!walkCode(stats, newpos, stack, scope, abc, autoFill)) {
                             return false;
                         }
                     } catch (ConvertException ex) {
@@ -2547,14 +3421,22 @@ public class AVM2Code implements Cloneable {
         return true;
     }
 
-    public CodeStats getStats(ABC abc, MethodBody body, int initScope) {
+    /**
+     * Gets stats.
+     *
+     * @param abc ABC
+     * @param body Method body
+     * @param initScope Initial scope
+     * @param autoFill Auto fill
+     * @return Code stats
+     */
+    public CodeStats getStats(ABC abc, MethodBody body, int initScope, boolean autoFill) {
         CodeStats stats = new CodeStats(this);
         stats.initscope = initScope;
-        if (!walkCode(stats, 0, 0, initScope, abc)) {
+        if (!walkCode(stats, 0, 0, initScope, abc, autoFill)) {
             return null;
         }
         int scopePos = -1;
-        int prevStart = 0;
         for (int e = 0; e < body.exceptions.length; e++) {
             ABCException ex = body.exceptions[e];
             try {
@@ -2567,7 +3449,7 @@ public class AVM2Code implements Cloneable {
                         visited.add(i);
                     }
                 }
-                if (!walkCode(stats, adr2pos(ex.target), 1 + (ex.isFinally() ? 1 : 0), scopePos, abc)) {
+                if (!walkCode(stats, adr2pos(ex.target), 1, scopePos, abc, autoFill)) {
                     return null;
                 }
                 int maxIp = 0;
@@ -2578,28 +3460,10 @@ public class AVM2Code implements Cloneable {
                     }
                 }
                 scopePos = stats.instructionStats[maxIp].scopepos_after;
-                int stackPos = stats.instructionStats[maxIp].stackpos_after;
                 int nextIp = maxIp + 1;
                 if (code.get(maxIp).definition instanceof JumpIns) {
                     nextIp = adr2pos(pos2adr(nextIp) + code.get(maxIp).operands[0]);
                 }
-                if (nextIp < stats.instructionStats.length) {
-                    InstructionStats nextIpStat = stats.instructionStats[nextIp];
-                    int origScopePos = nextIpStat.scopepos;
-                    int origStackPos = nextIpStat.stackpos;
-
-                    if (prevStart == ex.start && ex.isFinally() && !code.get(nextIp).isExit() && nextIpStat.seen) {
-                        for (int i = 0; i < stats.instructionStats.length; i++) {
-                            stats.instructionStats[i].seen = false;
-                        }
-                        // Rerun rest with new scopePos, stackPos
-                        if (!walkCode(stats, nextIp, origStackPos + 1/*magic!*/, scopePos - 1 /*magic!*/, abc)) {
-                            return null;
-                        }
-                        scopePos--;
-                    }
-                }
-                prevStart = ex.start;
             } catch (ConvertException ex1) {
                 // ignore
             }
@@ -2608,7 +3472,11 @@ public class AVM2Code implements Cloneable {
         return stats;
     }
 
-    // simplified version of getStats. This method calculates only the maxlocal value
+    /**
+     * Calculates maxlocal value. Simplified version of getStats.
+     *
+     * @return Code stats
+     */
     public CodeStats getMaxLocal() {
         CodeStats stats = new CodeStats();
         for (AVM2Instruction ins : code) {
@@ -2629,20 +3497,28 @@ public class AVM2Code implements Cloneable {
         return stats;
     }
 
+    /**
+     * Visit code.
+     *
+     * @param ip Position
+     * @param lastIp Last position
+     * @param refs Map from position to list of references
+     * @throws InterruptedException On interrupt
+     */
     private void visitCode(int ip, int lastIp, HashMap<Integer, List<Integer>> refs) throws InterruptedException {
-        List<Integer> toVisit = new ArrayList<>();
-        List<Integer> toVisitLast = new ArrayList<>();
+        Queue<Integer> toVisit = new LinkedList<>();
+        Queue<Integer> toVisitLast = new LinkedList<>();
         toVisit.add(ip);
         toVisitLast.add(lastIp);
         while (!toVisit.isEmpty()) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (CancellableWorker.isInterrupted()) {
                 throw new InterruptedException();
             }
-            ip = toVisit.remove(0);
-            lastIp = toVisitLast.remove(0);
+            ip = toVisit.remove();
+            lastIp = toVisitLast.remove();
             while (ip < code.size()) {
                 if (!refs.containsKey(ip)) {
-                    refs.put(ip, new ArrayList<>());
+                    refs.put(ip, new ArrayList<>(2));
                 }
                 refs.get(ip).add(lastIp);
                 lastIp = ip;
@@ -2668,6 +3544,7 @@ public class AVM2Code implements Cloneable {
                         ip = adr2pos(pos2adr(ip) + ins.operands[0]);
                         continue;
                     } catch (ConvertException ex) {
+                        //ignored
                     }
                 }
                 if (ins.definition instanceof JumpIns) {
@@ -2687,23 +3564,25 @@ public class AVM2Code implements Cloneable {
                 }
                 ip++;
             }
-        };
+        }
     }
 
+    /**
+     * Visits code.
+     *
+     * @param body Method body
+     * @return Map from position to list of references
+     * @throws InterruptedException On interrupt
+     */
     public HashMap<Integer, List<Integer>> visitCode(MethodBody body) throws InterruptedException {
         HashMap<Integer, List<Integer>> refs = new HashMap<>();
         for (int i = 0; i < code.size(); i++) {
             refs.put(i, new ArrayList<>());
         }
         visitCode(0, 0, refs);
-        int pos = 0;
         for (ABCException e : body.exceptions) {
-            pos++;
             try {
-                visitCode(adr2pos(e.start, true), adr2pos(e.start, true) - 1, refs);
-                visitCode(adr2pos(e.start, true), -1, refs);
-                visitCode(adr2pos(e.target), adr2pos(e.end, true), refs);
-                visitCode(adr2pos(e.end, true), -pos, refs);
+                visitCode(adr2pos(e.target), -1, refs);
             } catch (ConvertException ex) {
                 logger.log(Level.SEVERE, "Visitcode error", ex);
             }
@@ -2711,6 +3590,12 @@ public class AVM2Code implements Cloneable {
         return refs;
     }
 
+    /**
+     * Remove instructions that are marked as ignored.
+     *
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     public void removeIgnored(MethodBody body) throws InterruptedException {
         //System.err.println("removing ignored...");
         for (int i = 0; i < code.size(); i++) {
@@ -2722,11 +3607,33 @@ public class AVM2Code implements Cloneable {
         //System.err.println("/ignored removed");
     }
 
+    /**
+     * Removes dead code.
+     *
+     * @param body Method body
+     * @return Number of removed instructions
+     * @throws InterruptedException On interrupt
+     */
     public int removeDeadCode(MethodBody body) throws InterruptedException {
+        return removeDeadCode(body, new Reference<>(-1));
+    }
+
+    /**
+     * Removes dead code.
+     *
+     * @param body Method body
+     * @param minChangedIpRef Minimum changed instruction position (as
+     * reference)
+     * @return Number of removed instructions
+     * @throws InterruptedException On interrupt
+     */
+    public int removeDeadCode(MethodBody body, Reference<Integer> minChangedIpRef) throws InterruptedException {
         HashMap<Integer, List<Integer>> refs = visitCode(body);
         int cnt = 0;
+        Integer minChangedIp = -1;
         for (int i = code.size() - 1; i >= 0; i--) {
             if (refs.get(i).isEmpty()) {
+                minChangedIp = i;
                 code.get(i).setIgnored(true, 0);
                 cnt++;
             }
@@ -2739,6 +3646,9 @@ public class AVM2Code implements Cloneable {
             if (ins.definition instanceof JumpIns) {
                 if (ins.operands[0] == 0) {
                     ins.setIgnored(true, 0);
+                    if (minChangedIp == -1 || minChangedIp > i) {
+                        minChangedIp = i;
+                    }
                     cnt++;
                 }
             }
@@ -2746,9 +3656,17 @@ public class AVM2Code implements Cloneable {
 
         removeIgnored(body);
 
+        minChangedIpRef.setVal(minChangedIp);
+
         return cnt;
     }
 
+    /**
+     * Replaces jumps to exit instructions (return, throw) with exit
+     * instruction.
+     *
+     * @return True if modified
+     */
     public boolean inlineJumpExit() {
         boolean modified = false;
         int csize = code.size();
@@ -2776,63 +3694,13 @@ public class AVM2Code implements Cloneable {
         return modified;
     }
 
-    private static int getMostCommonIp(AVM2GraphSource code, List<Integer> branches) {
-        List<List<Integer>> reachable = new ArrayList<>();
-        for (int i = 0; i < branches.size(); i++) {
-            List<Integer> r = new ArrayList<>();
-            getReachableIps(code, branches.get(i), r);
-        }
-
-        int commonLevel;
-        Map<Integer, Integer> levelMap = new HashMap<>();
-        for (List<Integer> first : reachable) {
-            int maxclevel = 0;
-            Set<Integer> visited = new HashSet<>();
-            for (Integer p : first) {
-                if (visited.contains(p)) {
-                    continue;
-                }
-                visited.add(p);
-                boolean common = true;
-                commonLevel = 1;
-                for (List<Integer> r : reachable) {
-                    if (r == first) {
-                        continue;
-                    }
-                    if (r.contains(p)) {
-                        commonLevel++;
-                    }
-                }
-                if (commonLevel <= maxclevel) {
-                    continue;
-                }
-                maxclevel = commonLevel;
-                if (levelMap.containsKey(p)) {
-                    if (levelMap.get(p) > commonLevel) {
-                        commonLevel = levelMap.get(p);
-                    }
-                }
-                levelMap.put(p, commonLevel);
-                if (common) {
-                    //return p;
-                }
-            }
-        }
-        for (int i = reachable.size() - 1; i >= 2; i--) {
-            for (Integer p : levelMap.keySet()) {
-                if (levelMap.get(p) == i) {
-                    return p;
-                }
-            }
-        }
-        for (Integer p : levelMap.keySet()) {
-            if (levelMap.get(p) == branches.size()) {
-                return p;
-            }
-        }
-        return -1;
-    }
-
+    /**
+     * Gets reachable positions.
+     *
+     * @param code AVM2 code
+     * @param ip Current position
+     * @param reachable Result - list of reachable positions
+     */
     public static void getReachableIps(AVM2GraphSource code, int ip, List<Integer> reachable) {
         do {
             if (reachable.contains(ip)) {
@@ -2852,10 +3720,27 @@ public class AVM2Code implements Cloneable {
         } while (ip < code.size());
     }
 
+    /**
+     * Checks if currentIp is direct ancestor.
+     *
+     * @param currentIp Current position
+     * @param ancestor Ancestor position
+     * @param refs Map from position to list of references
+     * @return True if currentIp is direct ancestor
+     */
     public static boolean isDirectAncestor(int currentIp, int ancestor, HashMap<Integer, List<Integer>> refs) {
         return isDirectAncestor(currentIp, ancestor, refs, new ArrayList<>());
     }
 
+    /**
+     * Checks if currentIp is direct ancestor.
+     *
+     * @param currentIp Current position
+     * @param ancestor Ancestor position
+     * @param refs Map from position to list of references
+     * @param visited List of visited positions
+     * @return True if currentIp is direct ancestor
+     */
     private static boolean isDirectAncestor(int currentIp, int ancestor, HashMap<Integer, List<Integer>> refs, List<Integer> visited) {
         if (currentIp == -1) {
             return true;
@@ -2888,6 +3773,15 @@ public class AVM2Code implements Cloneable {
         return false;
     }
 
+    /**
+     * Gets reachable positions prior the current position.
+     *
+     * @param currentIp Current position
+     * @param refs Map from position to list of references
+     * @param reachable Result - set of reachable positions
+     * @param visited List of visited positions
+     * @return True if visited does not contain currentIp
+     */
     public static boolean getPreviousReachableIps(int currentIp, HashMap<Integer, List<Integer>> refs, Set<Integer> reachable, Set<Integer> visited) {
         do {
             if (visited.contains(currentIp)) {
@@ -2919,6 +3813,11 @@ public class AVM2Code implements Cloneable {
         return true;
     }
 
+    /**
+     * Clones AVM2 code.
+     *
+     * @return Cloned AVM2 code
+     */
     @Override
     public AVM2Code clone() {
         try {
@@ -2931,10 +3830,19 @@ public class AVM2Code implements Cloneable {
                 ret.code = codeCopy;
             }
 
-            ret.killedRegs = new HashMap<>();
             return ret;
         } catch (CloneNotSupportedException ex) {
             throw new RuntimeException();
+        }
+    }
+
+    /**
+     * Marks virtual addresses. Virtual address is the address of the
+     * instruction before any modifications to the code like deobfuscation etc.
+     */
+    public void markVirtualAddresses() {
+        for (AVM2Instruction ins : code) {
+            ins.setVirtualAddress(ins.getAddress());
         }
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.stack;
 
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.LocalDataArea;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.graph.GraphTargetItem;
@@ -27,11 +29,15 @@ import com.jpexs.decompiler.graph.model.DuplicateItem;
 import java.util.List;
 
 /**
+ * dup instruction - Duplicate the top value on the stack.
  *
  * @author JPEXS
  */
 public class DupIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DupIns() {
         super(0x2a, "dup", new int[]{}, false);
     }
@@ -48,7 +54,7 @@ public class DupIns extends InstructionDefinition {
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         GraphTargetItem v = stack.pop();
         stack.push(v);
-        stack.push(new DuplicateItem(ins, localData.lineStartInstruction, v));
+        stack.push(new DuplicateItem(AVM2GraphTargetDialect.INSTANCE, ins, localData.lineStartInstruction, v));
         //v.moreSrc.add(new GraphSourceItemPos(ins, 0));
 
     }

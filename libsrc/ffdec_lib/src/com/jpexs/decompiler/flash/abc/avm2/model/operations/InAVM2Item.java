@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,29 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.graph.CompilationException;
-import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * In operator.
  *
  * @author JPEXS
  */
 public class InAVM2Item extends BinaryOpItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param name Name
+     * @param object Object
+     */
     public InAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem name, GraphTargetItem object) {
-        super(instruction, lineStartIns, PRECEDENCE_RELATIONAL, name, object, "in", "", "");
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_RELATIONAL, name, object, "in", "", "");
     }
 
     @Override
@@ -46,6 +56,13 @@ public class InAVM2Item extends BinaryOpItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return new TypeItem(DottedChain.BOOLEAN);
+        return TypeItem.BOOLEAN;
+    }
+
+    @Override
+    public List<GraphSourceItem> getOperatorInstruction() {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new AVM2Instruction(0, AVM2Instructions.In, null));
+        return ret;
     }
 }

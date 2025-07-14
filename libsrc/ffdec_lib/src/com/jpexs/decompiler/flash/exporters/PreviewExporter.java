@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -21,10 +22,14 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.ASMParser;
+import com.jpexs.decompiler.flash.action.parser.script.ActionScript2Parser;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
+import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import com.jpexs.decompiler.flash.tags.DefineBitsTag;
+import com.jpexs.decompiler.flash.tags.DefineButton2Tag;
 import com.jpexs.decompiler.flash.tags.DefineMorphShape2Tag;
 import com.jpexs.decompiler.flash.tags.DefineMorphShapeTag;
+import com.jpexs.decompiler.flash.tags.DefineShapeTag;
 import com.jpexs.decompiler.flash.tags.DefineSoundTag;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.DefineTextTag;
@@ -39,6 +44,7 @@ import com.jpexs.decompiler.flash.tags.PlaceObject2Tag;
 import com.jpexs.decompiler.flash.tags.SetBackgroundColorTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
 import com.jpexs.decompiler.flash.tags.SoundStreamBlockTag;
+import com.jpexs.decompiler.flash.tags.SymbolClassTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.VideoFrameTag;
 import com.jpexs.decompiler.flash.tags.base.AloneTag;
@@ -46,21 +52,32 @@ import com.jpexs.decompiler.flash.tags.base.BoundedTag;
 import com.jpexs.decompiler.flash.tags.base.CharacterIdTag;
 import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
+import com.jpexs.decompiler.flash.tags.base.MorphShapeTag;
 import com.jpexs.decompiler.flash.tags.base.PlaceObjectTypeTag;
 import com.jpexs.decompiler.flash.tags.base.RemoveTag;
 import com.jpexs.decompiler.flash.tags.base.SoundStreamHeadTypeTag;
 import com.jpexs.decompiler.flash.tags.gfx.DefineCompactedFont;
 import com.jpexs.decompiler.flash.timeline.DepthState;
 import com.jpexs.decompiler.flash.timeline.Frame;
+import com.jpexs.decompiler.flash.timeline.SoundStreamFrameRange;
+import com.jpexs.decompiler.flash.timeline.TagScript;
 import com.jpexs.decompiler.flash.timeline.Timelined;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
+import com.jpexs.decompiler.flash.types.BUTTONCONDACTION;
+import com.jpexs.decompiler.flash.types.BUTTONRECORD;
+import com.jpexs.decompiler.flash.types.CXFORMWITHALPHA;
+import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.GLYPHENTRY;
 import com.jpexs.decompiler.flash.types.MATRIX;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.decompiler.flash.types.TEXTRECORD;
+import com.jpexs.decompiler.flash.types.shaperecords.EndShapeRecord;
 import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
+import com.jpexs.decompiler.flash.types.shaperecords.StraightEdgeRecord;
+import com.jpexs.decompiler.flash.types.shaperecords.StyleChangeRecord;
+import com.jpexs.decompiler.graph.CompilationException;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -70,11 +87,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
+ * Preview exporter.
  *
  * @author JPEXS
  */
@@ -85,8 +106,158 @@ public class PreviewExporter {
 
     public static final int MORPH_SHAPE_ANIMATION_FRAME_RATE = 30;
 
-    public SWFHeader exportSwf(OutputStream os, TreeItem treeItem, Color backgroundColor, int fontPageNum) throws IOException, ActionParseException {
-        SWF swf = treeItem.getSwf();
+    private void updateProgressBar(int xmin, int ymin, SWF swf, SWFOutputStream sos2, int width, int height, int progressBarHeight, int currentFrame, int totalFrames) throws IOException {
+        Matrix m = new Matrix();
+        m.translate(xmin, ymin + height - progressBarHeight * 20);
+        m.scale(width * currentFrame / totalFrames, progressBarHeight * 20);
+        new PlaceObject2Tag(swf, true, 2, -1, m.toMATRIX(), null, -1, null, -1, null).writeTag(sos2);
+    }
+
+    private void addControls(int xmin, int ymin, int progressBarHeight, SWF swf, SWFOutputStream sos2, int width, int numFrames, int height) throws IOException {
+        int progressBarShapeId = swf.getNextCharacterId();
+        int overVideoButtonId = progressBarShapeId + 1;
+        int progressBarButtonId = overVideoButtonId + 1;
+
+        Color progressBarColor = Color.red;
+        DefineShapeTag dsh = new DefineShapeTag(swf);
+        dsh.shapeBounds = new RECT(0, 20, 0, 20 * progressBarHeight);
+        dsh.shapeId = progressBarShapeId;
+        dsh.shapes.fillStyles.fillStyles = new FILLSTYLE[1];
+        dsh.shapes.fillStyles.fillStyles[0] = new FILLSTYLE();
+        dsh.shapes.fillStyles.fillStyles[0].fillStyleType = FILLSTYLE.SOLID;
+        dsh.shapes.fillStyles.fillStyles[0].color = new RGB(progressBarColor);
+        dsh.shapes.shapeRecords.clear();
+        StyleChangeRecord scr = new StyleChangeRecord();
+        scr.stateFillStyle0 = true;
+        scr.fillStyle0 = 1;
+        scr.stateMoveTo = true;
+        scr.moveDeltaX = 0;
+        scr.moveDeltaY = 0;
+        dsh.shapes.shapeRecords.add(scr);
+        StraightEdgeRecord ser;
+        ser = new StraightEdgeRecord();
+        ser.vertLineFlag = true;
+        ser.deltaY = 1;
+        dsh.shapes.shapeRecords.add(ser);
+        ser = new StraightEdgeRecord();
+        ser.deltaX = 1;
+        dsh.shapes.shapeRecords.add(ser);
+        ser = new StraightEdgeRecord();
+        ser.vertLineFlag = true;
+        ser.deltaY = -1;
+        dsh.shapes.shapeRecords.add(ser);
+        ser = new StraightEdgeRecord();
+        ser.deltaX = -1;
+        dsh.shapes.shapeRecords.add(ser);
+        dsh.shapes.shapeRecords.add(new EndShapeRecord());
+
+        dsh.writeTag(sos2);
+
+        DefineButton2Tag overVideoButton = new DefineButton2Tag(swf);
+        overVideoButton.buttonId = overVideoButtonId;
+
+        BUTTONRECORD br;
+        br = new BUTTONRECORD();
+        br.buttonStateUp = false;
+        br.buttonStateDown = false;
+        br.buttonStateOver = false;
+        br.buttonStateHitTest = true;
+        br.characterId = progressBarShapeId;
+        br.placeDepth = 1;
+        br.colorTransform = new CXFORMWITHALPHA();
+        br.placeMatrix = new MATRIX();
+        overVideoButton.characters.add(br);
+
+        BUTTONCONDACTION bca;
+        ActionScript2Parser ap;
+
+        bca = new BUTTONCONDACTION(swf, overVideoButton);
+        bca.isLast = true;
+        ap = new ActionScript2Parser(swf, bca);
+        try {
+            bca.setActions(ap.actionsFromString("on(press){"
+                    + "stopped = !stopped; if(stopped) {stop();}else{play();}"
+                    + "}", swf.getCharset()));
+        } catch (CompilationException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ActionParseException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        overVideoButton.actions.add(bca);
+
+        overVideoButton.writeTag(sos2);
+
+        DefineButton2Tag progressBarButton = new DefineButton2Tag(swf);
+        progressBarButton.buttonId = progressBarButtonId;
+        progressBarButton.characters.add(br);
+
+        bca = new BUTTONCONDACTION(swf, overVideoButton);
+        bca.isLast = true;
+
+        ap = new ActionScript2Parser(swf, bca);
+        try {
+            bca.setActions(ap.actionsFromString("on(press){"
+                    + "var f = Math.round(_root._xmouse*" + numFrames + "/" + (width / SWF.unitDivisor) + ");"
+                    + "if(stopped){"
+                    + "gotoAndStop(f);"
+                    + "}else{"
+                    + "gotoAndPlay(f);"
+                    + "}"
+                    + "}", swf.getCharset()));
+        } catch (CompilationException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ActionParseException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        progressBarButton.actions.add(bca);
+
+        progressBarButton.writeTag(sos2);
+
+        Matrix m;
+
+        m = new Matrix();
+        m.translate(xmin, ymin + height - progressBarHeight * 20);
+        m.scale(1, progressBarHeight * 20);
+
+        new PlaceObject2Tag(swf, false, 2, progressBarShapeId, m.toMATRIX(), null, -1, null, -1, null).writeTag(sos2);
+
+        m = new Matrix();
+        m.scale(width, height - progressBarHeight * 20);
+
+        new PlaceObject2Tag(swf, false, 3, overVideoButtonId, m.toMATRIX(), null, -1, null, -1, null).writeTag(sos2);
+
+        m = new Matrix();
+        m.translate(xmin, ymin + height - progressBarHeight * 20);
+        m.scale(width, progressBarHeight * 20);
+
+        new PlaceObject2Tag(swf, false, 4, progressBarButtonId, m.toMATRIX(), null, -1, null, -1, null).writeTag(sos2);
+
+        DoActionTag doAction;
+        doAction = new DoActionTag(swf);
+        ap = new ActionScript2Parser(swf, doAction);
+        try {
+            doAction.setActions(ap.actionsFromString("var stopped = false;", swf.getCharset()));
+        } catch (CompilationException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ActionParseException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(PreviewExporter.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        doAction.writeTag(sos2);
+    }
+
+    public SWFHeader exportSwf(OutputStream os, TreeItem treeItem, Color backgroundColor, int fontPageNum, boolean showControls) throws IOException, ActionParseException {
+        SWF swf = (SWF) treeItem.getOpenable();
+
+        if (treeItem instanceof TagScript) {
+            treeItem = ((TagScript) treeItem).getTag();
+        }
 
         int frameCount = 1;
         float frameRate = swf.frameRate;
@@ -99,7 +270,13 @@ public class PreviewExporter {
 
         List<SoundStreamBlockTag> soundFrames = new ArrayList<>();
         if (treeItem instanceof SoundStreamHeadTypeTag) {
-            soundFrames = ((SoundStreamHeadTypeTag) treeItem).getBlocks();
+            SoundStreamHeadTypeTag head = (SoundStreamHeadTypeTag) treeItem;
+            for (SoundStreamFrameRange range : head.getRanges()) {
+                soundFrames.addAll(range.blocks);
+            }
+        }
+        if (treeItem instanceof SoundStreamFrameRange) {
+            soundFrames = ((SoundStreamFrameRange) treeItem).blocks;
             frameCount = soundFrames.size();
         }
 
@@ -118,7 +295,7 @@ public class PreviewExporter {
 
         byte[] data;
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            SWFOutputStream sos2 = new SWFOutputStream(baos, SWF.DEFAULT_VERSION);
+            SWFOutputStream sos2 = new SWFOutputStream(baos, SWF.DEFAULT_VERSION, swf.getCharset());
             RECT outrect = new RECT(swf.displayRect);
 
             RECT treeItemBounds = null;
@@ -133,14 +310,27 @@ public class PreviewExporter {
                 treeItemBounds = ((Frame) treeItem).timeline.timelined.getRect();
             }
 
-            if (treeItemBounds != null) {
-                if (outrect.getWidth() < treeItemBounds.getWidth()) {
-                    outrect.Xmax += treeItemBounds.getWidth() - outrect.getWidth();
-                }
+            if (showControls) {
+                outrect = new RECT(treeItemBounds);
+            } else {
+                if (treeItemBounds != null) {
+                    if (outrect.getWidth() < treeItemBounds.getWidth()) {
+                        outrect.Xmax += treeItemBounds.getWidth() - outrect.getWidth();
+                    }
 
-                if (outrect.getHeight() < treeItemBounds.getHeight()) {
-                    outrect.Ymax += treeItemBounds.getHeight() - outrect.getHeight();
+                    if (outrect.getHeight() < treeItemBounds.getHeight()) {
+                        outrect.Ymax += treeItemBounds.getHeight() - outrect.getHeight();
+                    }
                 }
+            }
+
+            if (!(treeItem instanceof DefineVideoStreamTag) && !(treeItem instanceof MorphShapeTag)) {
+                showControls = false;
+            }
+
+            int progressBarHeight = 20;
+            if (showControls) {
+                outrect.Ymax += progressBarHeight * 20;
             }
 
             int width = outrect.getWidth();
@@ -152,7 +342,15 @@ public class PreviewExporter {
 
             FileAttributesTag fa = swf.getFileAttributes();
             if (fa != null) {
-                fa.writeTag(sos2);
+                FileAttributesTag fa2;
+                try {
+                    fa2 = (FileAttributesTag) fa.cloneTag();
+                    fa2.actionScript3 = false;
+                    fa2.setModified(true);
+                    fa2.writeTag(sos2);
+                } catch (InterruptedException ex) {
+                    //ignored
+                }                
             }
 
             SetBackgroundColorTag setBgColorTag = swf.getBackgroundColor();
@@ -164,27 +362,29 @@ public class PreviewExporter {
                 setBgColorTag.writeTag(sos2);
             }
 
+            Set<Integer> doneCharacters = new LinkedHashSet<>();
             if (treeItem instanceof Frame) {
                 Frame fn = (Frame) treeItem;
                 Timelined parent = fn.timeline.timelined;
 
-                Set<Integer> doneCharacters = new HashSet<>();
                 for (Tag t : parent.getTags()) {
                     if (t instanceof FileAttributesTag || t instanceof SetBackgroundColorTag) {
                         continue;
                     }
 
-                    if (t instanceof DoActionTag || t instanceof DoInitActionTag) {
-                        // todo: Maybe DoABC tags should be removed, too
+                    if (t instanceof DoActionTag
+                            || t instanceof DoInitActionTag
+                            || t instanceof ABCContainerTag
+                            || t instanceof SymbolClassTag
+                            || t instanceof ExportAssetsTag) {
                         continue;
                     }
 
-                    Set<Integer> needed = new HashSet<>();
+                    Set<Integer> needed = new LinkedHashSet<>();
                     t.getNeededCharactersDeep(needed);
                     for (int n : needed) {
                         if (!doneCharacters.contains(n)) {
-                            writeTag(swf.getCharacter(n), sos2);
-                            doneCharacters.add(n);
+                            writeTag(swf.getCharacter(n), sos2, doneCharacters);
                         }
                     }
 
@@ -193,8 +393,9 @@ public class PreviewExporter {
                     //}
                     if (t instanceof CharacterTag) {
                         int characterId = ((CharacterTag) t).getCharacterId();
-                        doneCharacters.add(characterId);
-                        writeTag(t, sos2);
+                        if (characterId != -1) {
+                            writeTag(t, sos2, doneCharacters);
+                        }
                     }
                 }
 
@@ -225,6 +426,7 @@ public class PreviewExporter {
                         jtt.writeTag(sos2);
                     }
                 } else if (treeItem instanceof AloneTag) {
+                    //empty
                 } else {
                     Set<Integer> needed = new HashSet<>();
                     ((Tag) treeItem).getNeededCharactersDeep(needed);
@@ -241,23 +443,27 @@ public class PreviewExporter {
                             }
                         }
 
-                        writeTag(characterTag, sos2);
+                        writeTag(characterTag, sos2, doneCharacters);
                     }
                 }
 
-                writeTag((Tag) treeItem, sos2);
+                writeTag((Tag) treeItem, sos2, doneCharacters);
 
                 MATRIX mat = new MATRIX();
                 mat.hasRotate = false;
                 mat.hasScale = false;
                 mat.translateX = 0;
                 mat.translateY = 0;
+                int rxmin = 0;
+                int rymin = 0;
                 if (treeItem instanceof BoundedTag) {
                     RECT r = ((BoundedTag) treeItem).getRect();
+                    rxmin = r.Xmin;
+                    rymin = r.Ymin;
                     mat.translateX = -r.Xmin;
                     mat.translateY = -r.Ymin;
                     mat.translateX = mat.translateX + width / 2 - r.getWidth() / 2;
-                    mat.translateY = mat.translateY + height / 2 - r.getHeight() / 2;
+                    mat.translateY = mat.translateY + (showControls ? height - progressBarHeight * 20 : height) / 2 - r.getHeight() / 2;
                 } else {
                     mat.translateX = width / 4;
                     mat.translateY = height / 4;
@@ -267,7 +473,7 @@ public class PreviewExporter {
 
                     int countGlyphsTotal = ft.getGlyphShapeTable().size();
                     int countGlyphs = Math.min(SHAPERECORD.MAX_CHARACTERS_IN_FONT_PREVIEW, countGlyphsTotal);
-                    int fontId = ft.getFontId();
+                    int fontId = swf.getCharacterId(ft);
                     int cols = (int) Math.ceil(Math.sqrt(countGlyphs));
                     int rows = (int) Math.ceil(((float) countGlyphs) / ((float) cols));
                     if (rows == 0) {
@@ -281,7 +487,7 @@ public class PreviewExporter {
                     List<SHAPE> shapes = ft.getGlyphShapeTable();
                     int maxw = 0;
                     for (int f = firstGlyphIndex; f < firstGlyphIndex + countGlyphs; f++) {
-                        RECT b = shapes.get(f).getBounds();
+                        RECT b = shapes.get(f).getBounds(1);
                         if (b.Xmin == Integer.MAX_VALUE) {
                             continue;
                         }
@@ -314,7 +520,7 @@ public class PreviewExporter {
                         List<TEXTRECORD> rec = new ArrayList<>();
                         TEXTRECORD tr = new TEXTRECORD();
 
-                        RECT b = shapes.get(f).getBounds();
+                        RECT b = shapes.get(f).getBounds(1);
                         int xmin = b.Xmin == Integer.MAX_VALUE ? 0 : (int) (b.Xmin / ft.getDivider());
                         xmin *= textHeight / 1024.0;
                         int ymin = b.Ymin == Integer.MAX_VALUE ? 0 : (int) (b.Ymin / ft.getDivider());
@@ -352,10 +558,16 @@ public class PreviewExporter {
                     }
                     new ShowFrameTag(swf).writeTag(sos2);
                 } else if ((treeItem instanceof DefineMorphShapeTag) || (treeItem instanceof DefineMorphShape2Tag)) {
+                    if (showControls) {
+                        addControls(rxmin, rymin, progressBarHeight, swf, sos2, width, 65536, height);
+                    }
                     new PlaceObject2Tag(swf, false, 1, chtId, mat, null, 0, null, -1, null).writeTag(sos2);
                     new ShowFrameTag(swf).writeTag(sos2);
                     for (int ratio = 0; ratio < 65536; ratio += 65536 / frameCount) {
                         new PlaceObject2Tag(swf, true, 1, chtId, mat, null, ratio, null, -1, null).writeTag(sos2);
+                        if (showControls) {
+                            updateProgressBar(rxmin, rymin, swf, sos2, width, height, progressBarHeight, ratio, 65536);
+                        }
                         new ShowFrameTag(swf).writeTag(sos2);
                     }
                 } else if (treeItem instanceof SoundStreamHeadTypeTag) {
@@ -373,25 +585,6 @@ public class PreviewExporter {
                     DoActionTag doa;
 
                     doa = new DoActionTag(swf, null);
-                    actions = ASMParser.parse(0, false,
-                            "ConstantPool \"_root\" \"my_sound\" \"Sound\" \"my_define_sound\" \"attachSound\"\n"
-                            + "Push \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\" 0.0 \"Sound\"\n"
-                            + "NewObject\n"
-                            + "SetMember\n"
-                            + "Push \"my_define_sound\" 1 \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\"\n"
-                            + "GetMember\n"
-                            + "Push \"attachSound\"\n"
-                            + "CallMethod\n"
-                            + "Pop\n"
-                            + "Stop", swf.version, false);
-                    doa.setActions(actions);
-                    doa.writeTag(sos2);
-                    new ShowFrameTag(swf).writeTag(sos2);
-
                     actions = ASMParser.parse(0, false,
                             "ConstantPool \"_root\" \"my_sound\" \"Sound\" \"my_define_sound\" \"attachSound\" \"start\"\n"
                             + "StopSounds\n"
@@ -414,66 +607,11 @@ public class PreviewExporter {
                             + "Push \"start\"\n"
                             + "CallMethod\n"
                             + "Pop\n"
-                            + "Stop", swf.version, false);
+                            + "Stop", swf.version, false, swf.getCharset());
                     doa.setActions(actions);
                     doa.writeTag(sos2);
-                    new ShowFrameTag(swf).writeTag(sos2);
-
-                    actions = ASMParser.parse(0, false,
-                            "ConstantPool \"_root\" \"my_sound\" \"Sound\" \"my_define_sound\" \"attachSound\" \"onSoundComplete\" \"start\" \"execParam\"\n"
-                            + "StopSounds\n"
-                            + "Push \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\" 0.0 \"Sound\"\n"
-                            + "NewObject\n"
-                            + "SetMember\n"
-                            + "Push \"my_define_sound\" 1 \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\"\n"
-                            + "GetMember\n"
-                            + "Push \"attachSound\"\n"
-                            + "CallMethod\n"
-                            + "Pop\n"
-                            + "Push \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\"\n"
-                            + "GetMember\n"
-                            + "Push \"onSoundComplete\"\n"
-                            + "DefineFunction2 \"\" 0 2 false true true false true false true false false  {\n"
-                            + "Push 0.0 register1 \"my_sound\"\n"
-                            + "GetMember\n"
-                            + "Push \"start\"\n"
-                            + "CallMethod\n"
-                            + "Pop\n"
-                            + "}\n"
-                            + "SetMember\n"
-                            + "Push \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"execParam\"\n"
-                            + "GetMember\n"
-                            + "Push 1 \"_root\"\n"
-                            + "GetVariable\n"
-                            + "Push \"my_sound\"\n"
-                            + "GetMember\n"
-                            + "Push \"start\"\n"
-                            + "CallMethod\n"
-                            + "Pop\n"
-                            + "Stop", swf.version, false);
-                    doa.setActions(actions);
-                    doa.writeTag(sos2);
-                    new ShowFrameTag(swf).writeTag(sos2);
-
-                    actions = ASMParser.parse(0, false,
-                            "StopSounds\n"
-                            + "Stop", swf.version, false);
-                    doa.setActions(actions);
-                    doa.writeTag(sos2);
-                    new ShowFrameTag(swf).writeTag(sos2);
-
                     new ShowFrameTag(swf).writeTag(sos2);
                 } else if (treeItem instanceof DefineVideoStreamTag) {
-
-                    new PlaceObject2Tag(swf, false, 1, chtId, mat, null, -1, null, -1, null).writeTag(sos2);
                     List<VideoFrameTag> frs = new ArrayList<>(videoFrames.values());
                     Collections.sort(frs, new Comparator<VideoFrameTag>() {
                         @Override
@@ -481,12 +619,19 @@ public class PreviewExporter {
                             return o1.frameNum - o2.frameNum;
                         }
                     });
+                    if (showControls) {
+                        addControls(rxmin, rymin, progressBarHeight, swf, sos2, width, videoFrames.size(), height);
+                    }
+                    new PlaceObject2Tag(swf, false, 1, chtId, mat, null, -1, null, -1, null).writeTag(sos2);
                     boolean first = true;
                     int ratio = 0;
                     for (VideoFrameTag f : frs) {
                         if (!first) {
                             ratio++;
                             new PlaceObject2Tag(swf, true, 1, -1, null, null, ratio, null, -1, null).writeTag(sos2);
+                            if (showControls) {
+                                updateProgressBar(rxmin, rymin, swf, sos2, width, height, progressBarHeight, ratio, videoFrames.size());
+                            }
                         }
                         f.writeTag(sos2);
                         new ShowFrameTag(swf).writeTag(sos2);
@@ -504,8 +649,10 @@ public class PreviewExporter {
                             MATRIX m2 = new Matrix(m).preConcatenate(new Matrix(mat)).toMATRIX();
                             pt.writeTagWithMatrix(sos2, m2);
                             lastTag = t;
+                        } else if (t instanceof DoActionTag) {
+                            //ignore
                         } else {
-                            t.writeTag(sos2);
+                            t.writeTagNoScripts(sos2);
                             lastTag = t;
                         }
                     }
@@ -527,7 +674,7 @@ public class PreviewExporter {
         result.version = Math.max(10, swf.version);
         result.frameRate = frameRate;
 
-        SWFOutputStream sos = new SWFOutputStream(os, result.version);
+        SWFOutputStream sos = new SWFOutputStream(os, result.version, swf.getCharset());
         sos.write("FWS".getBytes());
         sos.write(swf.version);
         result.fileSize = sos.getPos() + data.length + 4;
@@ -545,8 +692,16 @@ public class PreviewExporter {
         return t;
     }
 
-    private static void writeTag(Tag t, SWFOutputStream sos) throws IOException {
+    private static void writeTag(Tag t, SWFOutputStream sos, Set<Integer> doneCharacters) throws IOException {
         t = classicTag(t);
+
+        if (t instanceof CharacterIdTag) {
+            int chId = ((CharacterIdTag) t).getCharacterId();
+            if (doneCharacters.contains(chId)) {
+                return;
+            }
+            doneCharacters.add(chId);
+        }
 
         t.writeTag(sos);
         if (t instanceof CharacterIdTag) {
@@ -554,7 +709,16 @@ public class PreviewExporter {
             if (chIdTags != null) {
                 for (CharacterIdTag chIdTag : chIdTags) {
                     if (!(chIdTag instanceof PlaceObjectTypeTag || chIdTag instanceof RemoveTag)) {
-                        ((Tag) chIdTag).writeTag(sos);
+
+                        Set<Integer> needed = new LinkedHashSet<>();
+                        ((Tag) chIdTag).getNeededCharactersDeep(needed);
+                        for (int n : needed) {
+                            if (!doneCharacters.contains(n)) {
+                                writeTag(((Tag) chIdTag).getSwf().getCharacter(n), sos, doneCharacters);
+                            }
+                        }
+
+                        ((Tag) chIdTag).writeTagNoScripts(sos);
                     }
                 }
             }

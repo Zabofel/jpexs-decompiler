@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,22 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.swf5;
 
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.ASMParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.utf8.Utf8Helper;
@@ -32,23 +35,41 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * ConstantPool action - Sets the current constant pool.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionConstantPool extends Action {
 
+    /**
+     * Constant pool
+     */
     public List<String> constantPool = new ArrayList<>();
 
-    public ActionConstantPool(List<String> constantPool) {
-        super(0x88, 0);
+
+    /**
+     * Constructor.
+     * @param constantPool Constant pool
+     * @param charset Charset
+     */
+    public ActionConstantPool(List<String> constantPool, String charset) {
+        super(0x88, 0, charset);
         this.constantPool = constantPool;
     }
 
+    /**
+     * Constructor.
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @param version SWF version
+     * @throws IOException On I/O error
+     */
     public ActionConstantPool(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x88, actionLength);
+        super(0x88, actionLength, sis.getCharset());
         //sis = new SWFInputStream(new ByteArrayInputStream(sis.readBytes(actionLength)), version);
         int count = sis.readUI16("count");
         for (int i = 0; i < count; i++) {
@@ -56,16 +77,33 @@ public class ActionConstantPool extends Action {
         }
     }
 
-    public ActionConstantPool(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x88, 0);
+    /**
+     * Constructor.
+     * @param lexer Lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionConstantPool(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x88, 0, charset);
+        boolean first = true;
         while (true) {
-            ASMParsedSymbol symb = lexer.yylex();
+            boolean valueRequired = false;
+            ASMParsedSymbol symb = lexer.lex();
+            if (!first && symb.type == ASMParsedSymbol.TYPE_COMMA) {
+                symb = lexer.lex();
+                valueRequired = true;
+            }
             if (symb.type == ASMParsedSymbol.TYPE_STRING) {
                 constantPool.add((String) symb.value);
             } else {
-                lexer.yypushback(lexer.yylength());
+                if (valueRequired) {
+                    throw new ActionParseException("String expected", lexer.yyline());
+                }
+                lexer.pushback(symb);
                 break;
             }
+            first = false;
         }
     }
 
@@ -87,10 +125,20 @@ public class ActionConstantPool extends Action {
         return calculateSize(constantPool);
     }
 
+    /**
+     * Calculates size of string converted to bytes
+     * @param str String
+     * @return Size
+     */
     public static int calculateSize(String str) {
         return Utf8Helper.getBytesLength(str) + 1;
     }
 
+    /**
+     * Calculates the size of the action converted to bytes
+     * @param strings Strings
+     * @return Size
+     */
     public static int calculateSize(List<String> strings) {
         int res = 2;
         for (String s : strings) {
@@ -105,6 +153,9 @@ public class ActionConstantPool extends Action {
         StringBuilder ret = new StringBuilder();
         ret.append("ConstantPool");
         for (int i = 0; i < constantPool.size(); i++) {
+            if (i > 0) {
+                ret.append(",");
+            }
             ret.append(" \"").append(Helper.escapeActionScriptString(constantPool.get(i))).append("\"");
         }
         return ret.toString();
@@ -117,6 +168,6 @@ public class ActionConstantPool extends Action {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
     }
 }

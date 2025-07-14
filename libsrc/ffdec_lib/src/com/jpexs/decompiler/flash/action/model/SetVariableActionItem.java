@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ActionSetVariable;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
 import com.jpexs.decompiler.flash.action.swf5.ActionStoreRegister;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -30,20 +31,44 @@ import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Set variable.
  *
  * @author JPEXS
  */
 public class SetVariableActionItem extends ActionItem implements SetTypeActionItem {
 
+    /**
+     * Name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Temp register
+     */
     private int tempRegister = -1;
+
+    /**
+     * Compound value
+     */
+    public GraphTargetItem compoundValue;
+
+    /**
+     * Compound operator
+     */
+    public String compoundOperator;
+
+    /**
+     * Force use set
+     */
+    public boolean forceUseSet = false;
 
     @Override
     public GraphPart getFirstPart() {
@@ -70,24 +95,53 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
         return value;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param name Name
+     * @param value Value
+     */
     public SetVariableActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem name, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_ASSIGMENT, value);
+        super(instruction, lineStartIns, PRECEDENCE_ASSIGNMENT, value);
         this.name = name;
+    }
+
+    private boolean resultNeeded() {
+        boolean needsTempRegister = false;
+        if (value instanceof StoreRegisterActionItem) {
+            StoreRegisterActionItem sr = (StoreRegisterActionItem) value;
+            if (sr.temporary) {
+                needsTempRegister = true;
+            }
+        }
+        return needsTempRegister;
+    }
+
+    private boolean isValidName(LocalData localData) {
+        return ((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString())
+                && (IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"));
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        if (((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString())
-                && (IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super")
-                || IdentifiersDeobfuscation.isValidNameWithSlash(((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
+        if (isValidName(localData) || resultNeeded()) {
+            //TODO: handle result needed better, without identifierdeobfuscation
             HighlightData srcData = getSrcData();
             srcData.localName = name.toStringNoQuotes(localData);
-            stripQuotes(name, localData, writer);
+            writer.append(IdentifiersDeobfuscation.printIdentifier(false, name.toStringNoQuotes(localData)));
+            if (compoundOperator != null) {
+                writer.append(" ");
+                writer.append(compoundOperator);
+                writer.append("= ");
+                return compoundValue.toString(writer, localData);
+            }
             writer.append(" = ");
             return value.toString(writer, localData);
         } else {
             writer.append("set");
-            writer.spaceBeforeCallParenthesies(2);
+            writer.spaceBeforeCallParenthesis(2);
             writer.append("(");
             name.toString(writer, localData);
             writer.append(",");
@@ -115,7 +169,9 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 
@@ -127,9 +183,14 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+
+        if (forceUseSet) {
+            return toSourceMerge(localData, generator, name, value, new ActionSetVariable(), new ActionPush(Undefined.INSTANCE, charset));
+        }
         int tmpReg = asGenerator.getTempRegister(localData);
         try {
-            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg)));
+            return toSourceMerge(localData, generator, name, value, new ActionStoreRegister(tmpReg, charset), new ActionSetVariable(), new ActionPush(new RegisterNumber(tmpReg), charset));
         } finally {
             asGenerator.releaseTempRegister(localData, tmpReg);
         }
@@ -143,5 +204,74 @@ public class SetVariableActionItem extends ActionItem implements SetTypeActionIt
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 13 * hash + Objects.hashCode(this.name);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final SetVariableActionItem other = (SetVariableActionItem) obj;
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final SetVariableActionItem other = (SetVariableActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.name, other.name)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public GraphTargetItem getCompoundValue() {
+        return compoundValue;
+    }
+
+    @Override
+    public void setCompoundValue(GraphTargetItem value) {
+        this.compoundValue = value;
+    }
+
+    @Override
+    public void setCompoundOperator(String operator) {
+        this.compoundOperator = operator;
+    }
+
+    @Override
+    public String getCompoundOperator() {
+        return compoundOperator;
     }
 }

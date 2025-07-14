@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -20,10 +21,12 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Non-resolved tag stub. Used for (non-yet)unknown tags.
  *
  * @author JPEXS
  */
@@ -34,11 +37,11 @@ public class TagStub extends Tag {
     /**
      * Constructor
      *
-     * @param swf
-     * @param id
-     * @param data
-     * @param name
-     * @param sis
+     * @param swf SWF
+     * @param id ID
+     * @param data Data
+     * @param name Name
+     * @param sis SWF input stream
      */
     public TagStub(SWF swf, int id, String name, ByteArrayRange data, SWFInputStream sis) {
         super(swf, id, name, data);
@@ -65,5 +68,21 @@ public class TagStub extends Tag {
 
     public SWFInputStream getDataStream() {
         return dataStream;
+    }
+
+    @Override
+    public String toString() {
+        return tagName + " [ID = " + id + "]";
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        Map<Integer, TagTypeInfo> classes = Tag.getKnownClasses();
+        if (classes.containsKey(id)) {
+            ret.put("tcl", classes.get(id).getName());
+        }
+        ret.put("tid", "" + id);
+        return ret;
     }
 }

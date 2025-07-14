@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,12 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ConstantIndex;
 import com.jpexs.decompiler.flash.ecma.Undefined;
@@ -31,31 +33,45 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Unresolved constant.
  *
  * @author JPEXS
  */
 public class UnresolvedConstantActionItem extends ActionItem implements SimpleValue {
 
+    /**
+     * Computed register value
+     */
     public GraphTargetItem computedRegValue;
 
-    public final int pos;
-
+    /**
+     * Index
+     */
     private int index;
 
+    /**
+     * Constructor.
+     *
+     * @param index Index
+     */
     public UnresolvedConstantActionItem(int index) {
         this(null, null, 0, index);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param instructionPos Instruction position
+     * @param index Index
+     */
     public UnresolvedConstantActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, int instructionPos, int index) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.index = index;
         this.pos = instructionPos;
     }
-
-    @Override
-    protected int getPos() {
-        return pos;
-    }
+    
 
     @Override
     public boolean isVariableComputed() {
@@ -77,6 +93,10 @@ public class UnresolvedConstantActionItem extends ActionItem implements SimpleVa
         return "\u00A7\u00A7constant(" + index + ")";
     }
 
+    /**
+     * Gets the index.
+     * @return Index
+     */
     public int getIndex() {
         return index;
     }
@@ -138,7 +158,9 @@ public class UnresolvedConstantActionItem extends ActionItem implements SimpleVa
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, new ActionPush(new ConstantIndex(index)));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+        return toSourceMerge(localData, generator, new ActionPush(new ConstantIndex(index), charset));
     }
 
     @Override
@@ -146,10 +168,18 @@ public class UnresolvedConstantActionItem extends ActionItem implements SimpleVa
         return true;
     }
 
+    /**
+     * Checks if this is string.
+     * @return True if this is string
+     */
     public boolean isString() {
         return true;
     }
 
+    /**
+     * Gets as string.
+     * @return String
+     */
     public String getAsString() {
         if (!isString()) {
             return null;

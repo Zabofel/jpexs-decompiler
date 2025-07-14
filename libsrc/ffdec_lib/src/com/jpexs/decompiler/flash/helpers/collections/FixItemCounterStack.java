@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.flash.helpers.collections;
 import java.util.Stack;
 
 /**
+ * Fix item counter stack.
  *
  * @author JPEXS
  */
@@ -26,9 +27,17 @@ public class FixItemCounterStack extends Stack<Object> {
 
     private int fixItemCount = Integer.MAX_VALUE;
 
+    /**
+     * Constructor.
+     */
     public FixItemCounterStack() {
     }
 
+    /**
+     * Peeks the item at the specified index.
+     * @param index Index
+     * @return Item
+     */
     public Object peek(int index) {
         return super.get(size() - index);
     }
@@ -51,10 +60,18 @@ public class FixItemCounterStack extends Stack<Object> {
         return super.remove(index);
     }
 
+    /**
+     * Returns true if all items are fixed.
+     * @return True if all items are fixed
+     */
     public boolean allItemsFixed() {
         return size() <= fixItemCount;
     }
 
+    /**
+     * Returns the fixed item count.
+     * @return Fixed item count
+     */
     public int getFixItemCount() {
         return fixItemCount;
     }

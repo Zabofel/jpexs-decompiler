@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -30,8 +31,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
+ * SymbolClass tag - associates class names with character IDs. CharacterId 0 is
+ * the main class.
  *
  * @author JPEXS
  */
@@ -67,7 +71,7 @@ public class SymbolClassTag extends SymbolClassTypeTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public SymbolClassTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -97,7 +101,7 @@ public class SymbolClassTag extends SymbolClassTypeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -132,6 +136,18 @@ public class SymbolClassTag extends SymbolClassTypeTag {
                 modified = true;
             }
         }
+        if (modified) {
+            setModified(true);
+        }
         return modified;
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
+        for (int t : tags) {
+            if (t != 0) { //main class
+                needed.add(t);
+            }
+        }
     }
 }

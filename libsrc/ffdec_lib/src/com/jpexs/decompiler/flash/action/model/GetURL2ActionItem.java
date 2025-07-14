@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,39 +12,52 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionGetURL2;
+import com.jpexs.decompiler.flash.action.swf4.ActionPush;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Get URL2.
  *
  * @author JPEXS
  */
 public class GetURL2ActionItem extends ActionItem {
 
+    /**
+     * URL string
+     */
     public GraphTargetItem urlString;
 
+    /**
+     * Target string
+     */
     public GraphTargetItem targetString;
 
+    /**
+     * Send vars method
+     */
     public int sendVarsMethod;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(urlString);
-        ret.add(targetString);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(urlString);
+        visitor.visit(targetString);
     }
 
     @Override
@@ -58,7 +71,7 @@ public class GetURL2ActionItem extends ActionItem {
         }
 
         writer.append("getURL");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         urlString.toString(writer, localData);
         writer.append(",");
@@ -66,6 +79,15 @@ public class GetURL2ActionItem extends ActionItem {
         return writer.append(methodStr).append(")");
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param urlString URL string
+     * @param targetString Target string
+     * @param method Send vars method
+     */
     public GetURL2ActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem urlString, GraphTargetItem targetString, int method) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.urlString = urlString;
@@ -82,12 +104,85 @@ public class GetURL2ActionItem extends ActionItem {
     }
 
     @Override
+    public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+        return toSource(localData, generator, false);
+    }
+
+    @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, urlString, targetString, new ActionGetURL2(sendVarsMethod, false, false));
+        return toSource(localData, generator, true);
+    }
+
+    private List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn) throws CompilationException {
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+        return toSourceMerge(localData, generator, urlString, targetString, new ActionGetURL2(sendVarsMethod, false, false, charset), needsReturn ? new ActionPush(new Object[]{Undefined.INSTANCE, Undefined.INSTANCE}, charset) : null);
     }
 
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 79 * hash + Objects.hashCode(this.urlString);
+        hash = 79 * hash + Objects.hashCode(this.targetString);
+        hash = 79 * hash + this.sendVarsMethod;
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GetURL2ActionItem other = (GetURL2ActionItem) obj;
+        if (this.sendVarsMethod != other.sendVarsMethod) {
+            return false;
+        }
+        if (!Objects.equals(this.urlString, other.urlString)) {
+            return false;
+        }
+        if (!Objects.equals(this.targetString, other.targetString)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GetURL2ActionItem other = (GetURL2ActionItem) obj;
+        if (this.sendVarsMethod != other.sendVarsMethod) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.urlString, other.urlString)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.targetString, other.targetString)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
     }
 }

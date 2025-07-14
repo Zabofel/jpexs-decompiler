@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.construction;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -22,6 +23,7 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.LocalDataArea;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.other.GetPropertyIns;
 import com.jpexs.decompiler.flash.abc.avm2.model.ConstructPropAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
@@ -30,15 +32,20 @@ import com.jpexs.decompiler.flash.abc.avm2.model.StringAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.XMLAVM2Item;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * constructprop instruction - Construct a property.
  *
  * @author JPEXS
  */
 public class ConstructPropIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ConstructPropIns() {
         super(0x4a, "constructprop", new int[]{AVM2Code.DAT_MULTINAME_INDEX, AVM2Code.DAT_ARG_COUNT}, true);
     }
@@ -69,11 +76,8 @@ public class ConstructPropIns extends InstructionDefinition {
         }
         FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins);
         GraphTargetItem obj = stack.pop();
-        if (obj instanceof FindPropertyAVM2Item) {
-            multiname.property = false;  //can be type
-        }
 
-        if (multiname.isXML(localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)) {
+        if (multiname.isXML(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)) {
             if (args.size() == 1) {
                 GraphTargetItem arg = args.get(0);
                 List<GraphTargetItem> xmlLines = new ArrayList<>();
@@ -82,9 +86,9 @@ public class ConstructPropIns extends InstructionDefinition {
                     return;
                 }
             }
-        }//
+        }
         boolean isRegExp = false;
-        if (multiname.isTopLevel("RegExp", localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)) {
+        if (multiname.isTopLevel("RegExp", localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)) {
             isRegExp = true;
         }
         if (isRegExp && (args.size() >= 1) && (args.get(0) instanceof StringAVM2Item) && (args.size() == 1 || (args.size() == 2 && args.get(1) instanceof StringAVM2Item))) {
@@ -97,7 +101,15 @@ public class ConstructPropIns extends InstructionDefinition {
             return;
         }
 
-        stack.push(new ConstructPropAVM2Item(ins, localData.lineStartInstruction, obj, multiname, args));
+        Reference<Boolean> isStatic = new Reference<>(false);
+        Reference<GraphTargetItem> type = new Reference<>(null);
+        Reference<GraphTargetItem> callType = new Reference<>(null);
+        GetPropertyIns.resolvePropertyType(localData, obj, multiname, isStatic, type, callType);
+
+        if (obj instanceof FindPropertyAVM2Item) {
+            multiname.property = false;  //can be type
+        }
+        stack.push(new ConstructPropAVM2Item(ins, localData.lineStartInstruction, obj, multiname, args, type.getVal(), isStatic.getVal()));
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,15 +17,37 @@
 package com.jpexs.decompiler.flash.exporters.modes;
 
 /**
+ * Script export mode.
  *
  * @author JPEXS
  */
 public enum ScriptExportMode {
+    /**
+     * ActionScript source code
+     */
     AS,
+    /**
+     * ActionScript P-code source code
+     */
     PCODE,
+    /**
+     * ActionScript P-code source code with hex values
+     */
     PCODE_HEX,
+    /**
+     * ActionScript P-code source code Graphviz dot
+     */
     PCODE_GRAPHVIZ,
+    /**
+     * Hex values
+     */
     HEX,
-    CONSTANTS, // AS1/2 ConstantPool
+    /**
+     * ActionScript 1/2 ConstantPool
+     */
+    CONSTANTS,
+    /**
+     * ActionScript method stubs
+     */
     AS_METHOD_STUBS
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -35,35 +35,69 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * If action - Jumps to a location if a condition is true.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 4)
 public class ActionIf extends Action {
 
+    /**
+     * Offset to jump to
+     */
     private int offset;
 
+    /**
+     * Identifier
+     */
     public String identifier;
 
+    /**
+     * Jump used
+     */
     public boolean jumpUsed = true;
 
+    /**
+     * Ignore used
+     */
     public boolean ignoreUsed = true;
 
+    /**
+     * Gets the jump offset
+     *
+     * @return Offset
+     */
     public int getJumpOffset() {
         return offset;
     }
 
+    /**
+     * Sets the jump offset
+     *
+     * @param offset Offset
+     */
     public final void setJumpOffset(int offset) {
         this.offset = offset;
     }
 
-    public ActionIf(int offset) {
-        super(0x9D, 2);
+    /**
+     * Constructor
+     * @param offset Offset
+     * @param charset Charset
+     */
+    public ActionIf(int offset, String charset) {
+        super(0x9D, 2, charset);
         setJumpOffset(offset);
     }
 
+    /**
+     * Constructor
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
     public ActionIf(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x9D, actionLength);
+        super(0x9D, actionLength, sis.getCharset());
         setJumpOffset(sis.readSI16("offset"));
     }
 
@@ -72,6 +106,10 @@ public class ActionIf extends Action {
         refs.add(getTargetAddress());
     }
 
+    /**
+     * Gets the target address
+     * @return Address
+     */
     public long getTargetAddress() {
         return getAddress() + 5 /*getTotalActionLength()*/ + offset;
     }
@@ -92,14 +130,21 @@ public class ActionIf extends Action {
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         long address = getTargetAddress();
         String ofsStr = Helper.formatAddress(address);
         return "If loc" + ofsStr + (!jumpUsed ? " ;compileTimeIgnore" : (!ignoreUsed ? " ;compileTimeJump" : ""));
     }
 
-    public ActionIf(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x9D, 2);
+    /**
+     * Constructor
+     * @param lexer Lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionIf(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x9D, 2, charset);
         identifier = lexIdentifier(lexer);
     }
 
@@ -134,7 +179,7 @@ public class ActionIf extends Action {
         int jmp = code.adr2pos(targetAddress);
         int after = code.adr2pos(getAddress() + length);
         if (jmp == -1) {
-            Logger.getLogger(ActionIf.class.getName()).log(Level.SEVERE, "Invalid IF jump to ofs" + Helper.formatAddress(targetAddress));
+            Logger.getLogger(ActionIf.class.getName()).log(Level.SEVERE, "Invalid IF jump to ofs{0}", Helper.formatAddress(targetAddress));
             ret.add(after);
         } else {
             ret.add(jmp);

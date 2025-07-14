@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash.action.parser.script;
 
 /**
+ * ActionScript 1/2 symbol group.
  *
  * @author JPEXS
  */
@@ -34,5 +35,6 @@ public enum SymbolGroup {
     GLOBALFUNC,
     GLOBALCONST,
     PREPROCESSOR,
-    PATH
+    PATH,
+    DIRECTIVE
 }

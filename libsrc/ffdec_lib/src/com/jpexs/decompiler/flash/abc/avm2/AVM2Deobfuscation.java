@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
@@ -28,34 +29,74 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
+ * AVM2 deobfuscation.
  *
  * @author JPEXS
  */
 public class AVM2Deobfuscation {
 
+    /**
+     * Default size of random word.
+     */
     private static final int DEFAULT_FOO_SIZE = 10;
 
-    public static final String VALID_FIRST_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+    /**
+     * Valid characters for first character of name.
+     */
+    public static final String VALID_FIRST_CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$";
 
+    /**
+     * Valid characters for next characters of name.
+     */
     public static final String VALID_NEXT_CHARACTERS = VALID_FIRST_CHARACTERS + "0123456789";
 
-    public static final String VALID_NS_CHARACTERS = ".:$";
+    /**
+     * Valid characters for namespace.
+     */
+    public static final String VALID_NS_CHARACTERS = ".:";
 
+    /**
+     * SWF file.
+     */
     private final SWF swf;
 
+    /**
+     * AVM2 constant pool.
+     */
     private final AVM2ConstantPool constants;
 
+    /**
+     * Usage types count.
+     */
     private final Map<String, Integer> usageTypesCount = new HashMap<>();
 
-    public static final DottedChain FLASH_PROXY = new DottedChain(new String[]{"flash", "utils", "flash_proxy"}, "");
+    /**
+     * Flash proxy namespace.
+     */
+    public static final DottedChain FLASH_PROXY = new DottedChain(new String[]{"flash", "utils", "flash_proxy"});
 
-    public static final DottedChain BUILTIN = new DottedChain(new String[]{"-"}, "");
+    /**
+     * Built-in namespace.
+     */
+    public static final DottedChain BUILTIN = new DottedChain(new String[]{"-"});
 
+    /**
+     * Constructs AVM2 deobfuscation.
+     *
+     * @param swf SWF
+     * @param constants AVM2 constant pool
+     */
     public AVM2Deobfuscation(SWF swf, AVM2ConstantPool constants) {
         this.swf = swf;
         this.constants = constants;
     }
 
+    /**
+     * Checks if string is valid namespace part.
+     *
+     * @param s String
+     * @return True if string is valid namespace part
+     */
     private boolean isValidNSPart(String s) {
         boolean isValid = true;
         if (IdentifiersDeobfuscation.isReservedWord2(s)) {
@@ -79,6 +120,12 @@ public class AVM2Deobfuscation {
         return isValid;
     }
 
+    /**
+     * Gets built-in namespace.
+     *
+     * @param ns Namespace
+     * @return Built-in namespace
+     */
     public DottedChain builtInNs(String ns) {
         if (ns == null) {
             return null;
@@ -92,7 +139,18 @@ public class AVM2Deobfuscation {
         return null;
     }
 
-    private String fooString(HashMap<DottedChain, DottedChain> deobfuscated, String orig, boolean firstUppercase, String usageType, RenameType renameType) {
+    /**
+     * Generates random string.
+     *
+     * @param deobfuscated Deobfuscated names
+     * @param orig Original name
+     * @param firstUppercase First uppercase
+     * @param usageType Usage type
+     * @param renameType Rename type
+     * @param autoAdd Auto add
+     * @return Random string
+     */
+    private String fooString(HashMap<DottedChain, DottedChain> deobfuscated, String orig, boolean firstUppercase, String usageType, RenameType renameType, boolean autoAdd) {
         if (usageType == null) {
             usageType = "name";
         }
@@ -110,15 +168,27 @@ public class AVM2Deobfuscation {
             }
             if (swf.as3StringConstantExists(ret)
                     || IdentifiersDeobfuscation.isReservedWord2(ret)
-                    || deobfuscated.containsValue(DottedChain.parseWithSuffix(ret))) {
+                    || deobfuscated.containsValue(DottedChain.parseNoSuffix(ret))) {
                 found = true;
                 rndSize++;
             }
         } while (found);
-        deobfuscated.put(DottedChain.parseWithSuffix(orig), DottedChain.parseWithSuffix(ret));
+        if (autoAdd) {
+            deobfuscated.put(DottedChain.parseNoSuffix(orig), DottedChain.parseNoSuffix(ret));
+        }
         return ret;
     }
 
+    /**
+     * Deobfuscates package name.
+     *
+     * @param stringUsageTypes String usage types
+     * @param stringUsages String usages
+     * @param namesMap Names map
+     * @param strIndex String index
+     * @param renameType Rename type
+     * @return Deobfuscated package name
+     */
     public int deobfuscatePackageName(Map<Integer, String> stringUsageTypes, Set<Integer> stringUsages, HashMap<DottedChain, DottedChain> namesMap, int strIndex, RenameType renameType) {
         if (strIndex <= 0) {
             return strIndex;
@@ -133,30 +203,42 @@ public class AVM2Deobfuscation {
             DottedChain newName;
             if (namesMap.containsKey(sChain)) {
                 newName = namesMap.get(sChain);
-                constants.setString(strIndex, newName.toRawString());
-            } else {
-                List<String> ret = new ArrayList<>();
-                for (int p = 0; p < sChain.size(); p++) {
-                    String part = sChain.get(p);
-                    if (!isValidNSPart(part)) {
-                        ret.add(fooString(namesMap, part, false, "package", renameType));
-                    } else {
-                        ret.add(part);
-                    }
-                }
-                newName = new DottedChain(ret);
-                namesMap.put(sChain, newName);
+                return constants.getStringId(newName.toRawString(), true); //constants.setString(strIndex, newName.toRawString());
             }
+
+            List<String> ret = new ArrayList<>();
+            for (int p = 0; p < sChain.size(); p++) {
+                String part = sChain.get(p);
+                if (!isValidNSPart(part)) {
+                    ret.add(fooString(namesMap, part, false, "package", renameType, true));
+                } else {
+                    ret.add(part);
+                }
+            }
+            newName = new DottedChain(ret);
+            namesMap.put(sChain, newName);
+
             if (stringUsages.contains(strIndex)) {
                 strIndex = constants.addString(newName.toRawString());
             } else {
                 constants.setString(strIndex, newName.toRawString());
             }
-
         }
         return strIndex;
     }
 
+    /**
+     * Deobfuscates name.
+     *
+     * @param stringUsageTypes String usage types
+     * @param stringUsages String usages
+     * @param namespaceUsages Namespace usages
+     * @param namesMap Names map
+     * @param strIndex String index
+     * @param firstUppercase First uppercase
+     * @param renameType Rename type
+     * @return Deobfuscated name string index
+     */
     public int deobfuscateName(Map<Integer, String> stringUsageTypes, Set<Integer> stringUsages, Set<Integer> namespaceUsages, HashMap<DottedChain, DottedChain> namesMap, int strIndex, boolean firstUppercase, RenameType renameType) {
         if (strIndex <= 0) {
             return strIndex;
@@ -185,19 +267,23 @@ public class AVM2Deobfuscation {
 
         if (!isValid) {
             DottedChain newname;
-            DottedChain sChain = DottedChain.parseWithSuffix(s);
+            DottedChain sChain = DottedChain.parseNoSuffix(s);
             if (namesMap.containsKey(sChain)) {
                 newname = namesMap.get(sChain);
-            } else {
-                String str = fooString(namesMap, constants.getString(strIndex), firstUppercase, stringUsageTypes.get(strIndex), renameType);
-                newname = DottedChain.parseWithSuffix(str);
+                return constants.getStringId(newname, true);
             }
+
+            String str = fooString(namesMap, constants.getString(strIndex), firstUppercase, stringUsageTypes.get(strIndex), renameType, false);
+            newname = DottedChain.parseNoSuffix(str);
+
             if (stringUsages.contains(strIndex) || namespaceUsages.contains(strIndex)) { // this name is already referenced as String
+                String usageType = stringUsageTypes.get(strIndex);
                 strIndex = constants.addString(s); // add new index
+                stringUsageTypes.put(strIndex, usageType);
             }
             constants.setString(strIndex, newname.toRawString());
             if (!namesMap.containsKey(sChain)) {
-                namesMap.put(sChain, DottedChain.parseWithSuffix(constants.getString(strIndex)));
+                namesMap.put(sChain, DottedChain.parseNoSuffix(constants.getString(strIndex)));
             }
         }
         return strIndex;

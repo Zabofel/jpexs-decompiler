@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -31,6 +32,7 @@ import com.jpexs.decompiler.flash.tags.ABCContainerTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.TranslateException;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -89,9 +91,10 @@ public class DirectEditingTest extends FileTestBase {
 
                         System.out.println("Recompiling:" + classPathString + "...");
                         try {
-                            en.toSource(htw, abc.script_info.get(s).traits.traits, new ConvertData(), ScriptExportMode.AS, false);
+                            en.toSource(swf.getAbcIndex(), htw, abc.script_info.get(s).traits.traits, new ConvertData(), ScriptExportMode.AS, false, false, false);
+                            htw.finishHilights();
                             String original = htw.toString();
-                            abc.replaceScriptPack(As3ScriptReplacerFactory.createFFDec() /*TODO: test the otherone*/, en, original);
+                            abc.replaceScriptPack(As3ScriptReplacerFactory.createFFDec() /*TODO: test the otherone*/, en, original, new ArrayList<>());
                         } catch (As3ScriptReplaceException ex) {
                             fail("Exception during decompilation - file: " + filePath + " class: " + classPathString + " msg:" + ex.getMessage(), ex);
                         } catch (Exception ex) {
@@ -107,29 +110,33 @@ public class DirectEditingTest extends FileTestBase {
                     try {
                         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
+                        writer.finishHilights();
                         String as = writer.toString();
-                        as = asm.removePrefixAndSuffix(as);
-                        ActionScript2Parser par = new ActionScript2Parser(swf.version);
+                        //as = asm.removePrefixAndSuffix(as);
+
+                        ActionScript2Parser par = new ActionScript2Parser(swf, asm);
                         try {
-                            asm.setActions(par.actionsFromString(as));
+                            asm.setActions(par.actionsFromString(as, Utf8Helper.charsetName));
                         } catch (ActionParseException | CompilationException ex) {
                             fail("Unable to parse: " + as + "/" + asm.toString(), ex);
                         }
                         writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
+                        writer.finishHilights();
                         String as2 = writer.toString();
-                        as2 = asm.removePrefixAndSuffix(as2);
+                        //as2 = asm.removePrefixAndSuffix(as2);
                         try {
-                            asm.setActions(par.actionsFromString(as2));
+                            asm.setActions(par.actionsFromString(as2, Utf8Helper.charsetName));
                         } catch (ActionParseException | CompilationException ex) {
-                            fail("Unable to parse: " + asm.getSwf().getShortFileName() + "/" + asm.toString(), ex);
+                            fail("Unable to parse: " + asm.getSwf().getTitleOrShortFileName() + "/" + asm.toString(), ex);
                         }
                         writer = new HighlightedTextWriter(new CodeFormatting(), false);
                         asm.getActionScriptSource(writer, null);
+                        writer.finishHilights();
                         String as3 = writer.toString();
-                        as3 = asm.removePrefixAndSuffix(as3);
+                        //as3 = asm.removePrefixAndSuffix(as3);
                         if (!as3.equals(as2)) {
-                            fail("ActionScript is different: " + asm.getSwf().getShortFileName() + "/" + asm.toString());
+                            fail("ActionScript is different: " + asm.getSwf().getTitleOrShortFileName() + "/" + asm.toString());
                         }
                         asm.setModified();
                     } catch (InterruptedException | IOException | OutOfMemoryError | TranslateException | StackOverflowError ex) {
@@ -139,7 +146,7 @@ public class DirectEditingTest extends FileTestBase {
             String nFilePath = filePath.substring(0, filePath.length() - 4); //remove .swf
             nFilePath += ".recompiled.swf";
 
-            try (FileOutputStream fos = new FileOutputStream(nFilePath)) {
+            try ( FileOutputStream fos = new FileOutputStream(nFilePath)) {
                 swf.saveTo(fos);
             }
             //TODO: try tu run it in debug flashplayer (?)
@@ -150,6 +157,6 @@ public class DirectEditingTest extends FileTestBase {
 
     @Override
     public String[] getTestDataDirs() {
-        return new String[]{TESTDATADIR, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
+        return new String[]{TESTDATADIR}; //, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
     }
 }

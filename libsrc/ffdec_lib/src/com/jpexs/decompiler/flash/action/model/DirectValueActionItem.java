@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionPush;
 import com.jpexs.decompiler.flash.action.swf4.ConstantIndex;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
@@ -37,33 +40,51 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Direct value.
  *
  * @author JPEXS
  */
 public class DirectValueActionItem extends ActionItem implements SimpleValue {
 
+    /**
+     * Value.
+     */
     public Object value;
 
+    /**
+     * Constants.
+     */
     public final List<String> constants;
 
+    /**
+     * Computed register value.
+     */
     public GraphTargetItem computedRegValue;
 
-    public final int pos;
 
+    /**
+     * Constructor.
+     *
+     * @param o Value
+     */
     public DirectValueActionItem(Object o) {
         this(null, null, 0, o, new ArrayList<>());
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param instructionPos Instruction position
+     * @param value Value
+     * @param constants Constants
+     */
     public DirectValueActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, int instructionPos, Object value, List<String> constants) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.constants = constants;
         this.value = value;
         this.pos = instructionPos;
-    }
-
-    @Override
-    protected int getPos() {
-        return pos;
     }
 
     @Override
@@ -123,6 +144,11 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
         if (value instanceof ConstantIndex) {
             return this.constants.get(((ConstantIndex) value).index);
         }
+
+        if (value instanceof RegisterNumber) {
+            return IdentifiersDeobfuscation.printIdentifier(false, ((RegisterNumber) value).translate());
+        }
+
         return value.toString();
     }
 
@@ -144,9 +170,19 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
         if (value instanceof ConstantIndex) {
             return writer.append(this.constants.get(((ConstantIndex) value).index));
         }
+
+        if (value instanceof RegisterNumber) {
+            return writer.append(IdentifiersDeobfuscation.printIdentifier(false, ((RegisterNumber) value).translate()));
+        }
+
         return writer.append(value.toString());
     }
 
+    /**
+     * To string no hilight.
+     * @param constants Constants
+     * @return String
+     */
     public String toStringNoH(ConstantPool constants) {
         if (value instanceof ConstantIndex) {
             return this.constants.get(((ConstantIndex) value).index);
@@ -179,11 +215,10 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
             HighlightData srcData = getSrcData();
             srcData.localName = ((RegisterNumber) value).translate();
             srcData.regIndex = ((RegisterNumber) value).number;
-
-            return writer.appendWithData(((RegisterNumber) value).translate(), srcData);
+            
+            return writer.appendWithData(IdentifiersDeobfuscation.printIdentifier(false, ((RegisterNumber) value).translate()), srcData);
         }
-        //return writer.append(value.toString());
-        return writer.append(EcmaScript.toString(value, true)); // todo, use this line
+        return writer.append(EcmaScript.toString(value));
     }
 
     @Override
@@ -194,7 +229,7 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
             }
             dependencies.add(computedRegValue);
         }
-        return (value instanceof Double) || (value instanceof Float) || (value instanceof Boolean) || (value instanceof Long) || (value == Null.INSTANCE) || (computedRegValue != null && computedRegValue.isCompileTime(dependencies)) || (value instanceof String) || (value instanceof ConstantIndex);
+        return (value instanceof Double) || (value instanceof Float) || (value instanceof Boolean) || (value instanceof Long) || (value == Null.INSTANCE) || (value instanceof String) || (value instanceof ConstantIndex);
     }
 
     @Override
@@ -239,6 +274,7 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
         if (!Objects.equals(this.constants, other.constants)) {
             return false;
         }
+        //!!!
         if (other.pos != this.pos) {
             return false;
         }
@@ -247,7 +283,10 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        return toSourceMerge(localData, generator, new ActionPush(value));
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
+
+        return toSourceMerge(localData, generator, new ActionPush(value, charset));
     }
 
     @Override
@@ -255,10 +294,18 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
         return true;
     }
 
+    /**
+     * Checks if value is string.
+     * @return True if value is string
+     */
     public boolean isString() {
         return (value instanceof String) || (value instanceof ConstantIndex);
     }
 
+    /**
+     * Gets value as string.
+     * @return Value as string
+     */
     public String getAsString() {
         if (!isString()) {
             return null;
@@ -270,4 +317,9 @@ public class DirectValueActionItem extends ActionItem implements SimpleValue {
     public String toString() {
         return "" + getResult();
     }
+
+    @Override
+    public long getAsLong() {
+        return (long) (double) EcmaScript.toNumberAs2(value);
+    }        
 }

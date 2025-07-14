@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,42 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.modes;
 
 /**
+ * Morph shape export mode.
  *
  * @author JPEXS
  */
 public enum MorphShapeExportMode {
     //TODO: implement other morphshape export modes
+
+    /**
+     * SVG animation - Scalable Vector Graphics
+     */
     SVG,
+    /**
+     * SVG start and end frames - Scalable Vector Graphics
+     */
+    SVG_START_END,
+    /**
+     * HTML5 canvas animation
+     */
     CANVAS,
-    //PNG,
+    /**
+     * PNG start and end frames - Portable Network Graphics
+     */
+    PNG_START_END,
+    /**
+     * BMP start and end frames - Windows Bitmap
+     */
+    BMP_START_END,
     //GIF,
     //AVI,
+    /**
+     * SWF - Shockwave Flash
+     */
     SWF,
 }

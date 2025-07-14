@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * DefineText2 tag - defines text. Extends functionality of DefineText.
  *
  * @author JPEXS
  */
@@ -41,7 +43,7 @@ public class DefineText2Tag extends StaticTextTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineText2Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -66,9 +68,9 @@ public class DefineText2Tag extends StaticTextTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineText2Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -78,5 +80,10 @@ public class DefineText2Tag extends StaticTextTag {
     @Override
     public int getTextNum() {
         return 2;
+    }
+
+    @Override
+    public RECT getRectWithStrokes() {
+        return getRect();
     }
 }

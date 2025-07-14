@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,42 +12,50 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineLocal;
 import com.jpexs.decompiler.flash.action.swf5.ActionDefineLocal2;
+import com.jpexs.decompiler.flash.ecma.Undefined;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightData;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Define local variable.
  *
  * @author JPEXS
  */
 public class DefineLocalActionItem extends ActionItem implements SetTypeActionItem {
 
+    /**
+     * name
+     */
     public GraphTargetItem name;
 
+    /**
+     * Temp register
+     */
     private int tempRegister = -1;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(name);
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(name);
         if (value != null) {
-            ret.add(value);
+            visitor.visit(value);
         }
-        return ret;
     }
 
     @Override
@@ -70,6 +78,14 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
         return value;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param name Name
+     * @param value Value
+     */
     public DefineLocalActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem name, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
         this.name = name;
@@ -83,12 +99,13 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
         HighlightData srcData = getSrcData();
         srcData.localName = name.toStringNoQuotes(localData);
         srcData.declaration = true;
-        if (((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString()) && (!IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData), "this", "super"))) {
+        if (((name instanceof DirectValueActionItem)) && (((DirectValueActionItem) name).isString()) && (!IdentifiersDeobfuscation.isValidName(false, ((DirectValueActionItem) name).toStringNoQuotes(localData),
+                "this", "super", "true", "false", "NaN", "null", "newline", "Infinity", "undefined", "get", "set", "each"))) {
             IdentifiersDeobfuscation.appendObfuscatedIdentifier(((DirectValueActionItem) name).toStringNoQuotes(localData), writer);
         } else {
             stripQuotes(name, localData, writer);
         }
-        if (value == null) {
+        if (value == null || ((value instanceof DirectValueActionItem) && ((DirectValueActionItem) value).value == Undefined.INSTANCE)) {
             return writer;
         }
         writer.append(" = ");
@@ -110,7 +127,7 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
 
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
-        if (value == null) {
+        if (value == null || (value instanceof DirectValueActionItem && ((DirectValueActionItem) value).value == Undefined.INSTANCE)) {
             return toSourceMerge(localData, generator, name, new ActionDefineLocal2());
         } else {
             return toSourceMerge(localData, generator, name, value, new ActionDefineLocal());
@@ -121,5 +138,79 @@ public class DefineLocalActionItem extends ActionItem implements SetTypeActionIt
     @Override
     public boolean hasReturnValue() {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 97 * hash + Objects.hashCode(this.name);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DefineLocalActionItem other = (DefineLocalActionItem) obj;
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DefineLocalActionItem other = (DefineLocalActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.name, other.name)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
+    @Override
+    public GraphTargetItem getCompoundValue() {
+        throw new UnsupportedOperationException("Not supported.");
+    }
+
+    @Override
+    public void setCompoundValue(GraphTargetItem value) {
+        throw new UnsupportedOperationException("Not supported.");
+    }
+
+    @Override
+    public void setCompoundOperator(String operator) {
+        throw new UnsupportedOperationException("Not supported.");
+    }
+
+    @Override
+    public String getCompoundOperator() {
+        throw new UnsupportedOperationException("Not supported.");
     }
 }

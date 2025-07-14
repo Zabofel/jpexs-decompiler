@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -27,22 +28,57 @@ import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Get property.
  *
  * @author JPEXS
  */
 public class GetPropertyAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
+
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Call type
+     */
+    public GraphTargetItem callType;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+    
+    /**
+     * Is null condition - ?.
+     */
+    public boolean nullCondition = false;
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
+        visitor.visit(propertyName);
+    }
 
     @Override
     public boolean isConvertedCompileTime(Set<GraphTargetItem> dependencies) {
@@ -83,7 +119,7 @@ public class GetPropertyAVM2Item extends AVM2Item {
 
     @Override
     public String getResultAsString() {
-        if (object.isCompileTime() && (propertyName instanceof FullMultinameAVM2Item) && (((FullMultinameAVM2Item) propertyName).name.isCompileTime()) && "constructor".equals(((FullMultinameAVM2Item) propertyName).name.getResult())) {
+        if (object.isCompileTime() && (propertyName instanceof FullMultinameAVM2Item) && ((FullMultinameAVM2Item) propertyName).name != null && (((FullMultinameAVM2Item) propertyName).name.isCompileTime()) && "constructor".equals(((FullMultinameAVM2Item) propertyName).name.getResult())) {
             Object obj = object.getResult();
             EcmaType t = EcmaScript.type(obj);
             if (t != EcmaType.OBJECT) {
@@ -118,15 +154,29 @@ public class GetPropertyAVM2Item extends AVM2Item {
         return null;
     }
 
-    public GetPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param type Type
+     * @param callType Call type
+     * @param isStatic Is static
+     */
+    public GetPropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, GraphTargetItem type, GraphTargetItem callType, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
         this.propertyName = propertyName;
+        this.type = type;
+        this.callType = callType;
+        this.isStatic = isStatic;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        return formatProperty(writer, object, propertyName, localData);
+        return formatProperty(writer, object, propertyName, localData, isStatic, nullCondition);
     }
 
     @Override
@@ -138,11 +188,55 @@ public class GetPropertyAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        if (object instanceof FindPropertyAVM2Item) {
+            FindPropertyAVM2Item fprop = (FindPropertyAVM2Item) object;
+            if (fprop.propertyName instanceof FullMultinameAVM2Item) {
+                FullMultinameAVM2Item fmul = (FullMultinameAVM2Item) fprop.propertyName;
+                if (this.propertyName.equals(fmul)) {
+                    switch (fmul.resolvedMultinameName) {
+                        case "NaN":
+                            return TypeItem.NUMBER;
+                        case "undefined":
+                            return TypeItem.UNDEFINED;
+                    }
+                }
+            }
+        }
+        return type;
+        //return TypeItem.UNBOUNDED;
     }
 
     @Override
     public boolean hasReturnValue() {
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 97 * hash + Objects.hashCode(this.object);
+        hash = 97 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GetPropertyAVM2Item other = (GetPropertyAVM2Item) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
         return true;
     }
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.timeline.DepthState;
@@ -22,20 +23,57 @@ import java.awt.Point;
 import java.util.List;
 
 /**
+ * Rendering context.
  *
  * @author JPEXS
  */
 public class RenderContext {
 
+    /**
+     * Cursor position.
+     */
     public Point cursorPosition;
 
+    /**
+     * State under cursor.
+     */
     public List<DepthState> stateUnderCursor;
 
+    /**
+     * Mouse button.
+     */
     public int mouseButton;
 
+    /**
+     * Mouse over button.
+     */
     public ButtonTag mouseOverButton;
 
+    /**
+     * Border image.
+     */
     public SerializableImage borderImage;
 
-    public Cache<PlaceObjectTypeTag, SerializableImage> displayObjectCache;
+    /**
+     * Display object cache.
+     */
+    public Cache<DisplayObjectCacheKey, SerializableImage> displayObjectCache;
+
+    /**
+     * Enable handling buttons
+     */
+    public boolean enableButtons = true;
+    
+    /**
+     * Clear display object cache.
+     *
+     * @param placeObject Place object
+     */
+    public void clearPlaceObjectCache(PlaceObjectTypeTag placeObject) {
+        for (DisplayObjectCacheKey k : displayObjectCache.keys()) {
+            if (k.placeObject == placeObject) {
+                displayObjectCache.remove(k);
+            }
+        }
+    }
 }

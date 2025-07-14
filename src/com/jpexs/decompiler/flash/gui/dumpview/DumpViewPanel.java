@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ package com.jpexs.decompiler.flash.gui.dumpview;
 
 import com.jpexs.decompiler.flash.dumpview.DumpInfo;
 import com.jpexs.decompiler.flash.dumpview.DumpInfoSwfNode;
+import com.jpexs.decompiler.flash.gui.FasterScrollPane;
 import com.jpexs.decompiler.flash.gui.MyTextField;
 import com.jpexs.decompiler.flash.gui.View;
 import com.jpexs.decompiler.flash.gui.hexview.HexView;
@@ -35,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -43,7 +43,6 @@ import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 
 /**
- *
  * @author JPEXS
  */
 public class DumpViewPanel extends JPanel {
@@ -196,7 +195,7 @@ public class DumpViewPanel extends JPanel {
         });
 
         JPanel hexPanel = new JPanel(new BorderLayout());
-        hexPanel.add(new JScrollPane(dumpViewHexTable), BorderLayout.CENTER);
+        hexPanel.add(new FasterScrollPane(dumpViewHexTable), BorderLayout.CENTER);
         hexPanel.add(searchPanel, BorderLayout.SOUTH);
         add(hexPanel, BorderLayout.CENTER);
     }
@@ -208,7 +207,9 @@ public class DumpViewPanel extends JPanel {
     }
 
     private void doSearch() {
-        filterField.setBackground(Color.white);
+        if (View.isOceanic()) {
+            filterField.setBackground(Color.white);
+        }
 
         String text = filterField.getText();
         if (text.length() == 0) {

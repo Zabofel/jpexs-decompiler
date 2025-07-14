@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,21 +12,29 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 
 /**
+ * Script end.
  *
  * @author JPEXS
  */
 public class ScriptEndItem extends GraphTargetItem implements ExitItem {
 
-    public ScriptEndItem() {
-        super(null, null, NOPRECEDENCE);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     */
+    public ScriptEndItem(GraphTargetDialect dialect) {
+        super(dialect, null, null, NOPRECEDENCE);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,37 +12,80 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
-import com.jpexs.decompiler.graph.TypeItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.Objects;
 
 /**
+ * Get super object.
  *
  * @author JPEXS
  */
 public class GetSuperAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public FullMultinameAVM2Item propertyName;
 
-    public GetSuperAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, FullMultinameAVM2Item propertyName) {
+    /**
+     * Type
+     */
+    public GraphTargetItem type;
+
+    /**
+     * Call type
+     */
+    public GraphTargetItem callType;
+
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param type Type
+     * @param callType Call type
+     * @param isStatic Is static
+     */
+    public GetSuperAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, FullMultinameAVM2Item propertyName, GraphTargetItem type, GraphTargetItem callType, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
         this.propertyName = propertyName;
+        this.type = type;
+        this.callType = callType;
+        this.isStatic = isStatic;
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
+        visitor.visit(propertyName);
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         if (!object.toString().equals("this")) {
-            int length = writer.getLength();
-            object.toString(writer, localData);
-            if (writer.getLength() > length) {
+            if (!(object.getThroughDuplicate() instanceof FindPropertyAVM2Item)) {
+                object.toString(writer, localData);
                 writer.append(".");
             }
         }
@@ -52,11 +95,41 @@ public class GetSuperAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
-        return TypeItem.UNBOUNDED;
+        return type;
     }
 
     @Override
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 29 * hash + Objects.hashCode(this.object);
+        hash = 29 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GetSuperAVM2Item other = (GetSuperAVM2Item) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
 }

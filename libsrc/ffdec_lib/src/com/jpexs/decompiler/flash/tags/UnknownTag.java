@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,23 +12,31 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
+import java.util.Map;
 
 /**
+ * Unknown tag.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 1) //surprise!
 public class UnknownTag extends Tag {
 
-    private ByteArrayRange unknownData;
+    public ByteArrayRange unknownData;
+
+    public UnknownTag(SWF swf, int id) {
+        super(swf, id, "Unknown", null);
+    }
 
     public UnknownTag(SWFInputStream sis, int id, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), id, "Unknown", data);
@@ -45,7 +53,7 @@ public class UnknownTag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -53,7 +61,10 @@ public class UnknownTag extends Tag {
     }
 
     @Override
-    public String getName() {
-        return super.getName() + " (ID=" + id + ")";
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("tid", "" + id);
+        return ret;
     }
+
 }

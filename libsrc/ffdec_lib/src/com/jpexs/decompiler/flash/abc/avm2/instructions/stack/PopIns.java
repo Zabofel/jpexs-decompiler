@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.stack;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -21,17 +22,23 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.LocalDataArea;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
+import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.MarkItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.AnyItem;
 import java.util.List;
 
 /**
+ * pop instruction - Pop the top value from the stack.
  *
  * @author JPEXS
  */
 public class PopIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public PopIns() {
         super(0x29, "pop", new int[]{}, false);
     }
@@ -45,9 +52,18 @@ public class PopIns extends InstructionDefinition {
     @Override
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         GraphTargetItem top = stack.pop();
-        if ((!(top instanceof MarkItem))) {
-            output.add(top);
+        if (top instanceof AnyItem) {
+            return;
         }
+        if (top instanceof MarkItem) {
+            return;
+        }
+
+        if (top instanceof FindPropertyAVM2Item) {
+            return;
+        }
+
+        output.add(top);
     }
 
     @Override

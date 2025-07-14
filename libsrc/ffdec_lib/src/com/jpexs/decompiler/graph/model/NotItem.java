@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -21,20 +22,31 @@ import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SimpleValue;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.List;
 import java.util.Set;
 
 /**
+ * Logical NOT.
  *
  * @author JPEXS
  */
 public class NotItem extends UnaryOpItem implements LogicalOpItem, Inverted {
 
-    public NotItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
-        super(instruction, lineStartIns, PRECEDENCE_UNARY, value, "!", "Boolean");
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
+    public NotItem(GraphTargetDialect dialect, GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
+        super(dialect, instruction, lineStartIns, PRECEDENCE_UNARY, value, "!", "Boolean");
     }
 
     @Override
@@ -56,10 +68,16 @@ public class NotItem extends UnaryOpItem implements LogicalOpItem, Inverted {
         if (dependencies.contains(value)) {
             return false;
         }
-        dependencies.add(value);
+        if (!((value instanceof SimpleValue) && ((SimpleValue) value).isSimpleValue())) {
+            dependencies.add(value);
+        }
         return value.isCompileTime(dependencies);
     }
 
+    /**
+     * Gets the original value.
+     * @return Original value
+     */
     public GraphTargetItem getOriginal() {
         return value;
     }
@@ -96,7 +114,7 @@ public class NotItem extends UnaryOpItem implements LogicalOpItem, Inverted {
         }
         //If it is not a boolean, put !! there for toBoolean conversion
         if (!TypeItem.BOOLEAN.equals(value.returnType()) && !(value instanceof DuplicateItem)) {
-            return new NotItem(null, null, this);
+            return new NotItem(dialect, null, null, this);
         }
 
         //can be inverted

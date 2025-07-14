@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -20,20 +21,32 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 
 /**
+ * Comment item.
  *
  * @author JPEXS
  */
 public class CommentItem extends GraphTargetItem {
 
+    /**
+     * Comment lines.
+     */
     private final String[] commentLines;
 
+    /**
+     * Constructor.
+     * @param comment Comment
+     */
     public CommentItem(String comment) {
-        super(null, null, NOPRECEDENCE);
+        super(null, null, null, NOPRECEDENCE);
         this.commentLines = new String[]{comment};
     }
 
+    /**
+     * Constructor.
+     * @param commentLines Comment lines
+     */
     public CommentItem(String[] commentLines) {
-        super(null, null, NOPRECEDENCE);
+        super(null, null, null, NOPRECEDENCE);
         this.commentLines = commentLines;
     }
 
@@ -52,6 +65,10 @@ public class CommentItem extends GraphTargetItem {
         return writer.append(" */");
     }
 
+    /**
+     * Gets comment lines.
+     * @return Comment lines
+     */
     public String[] getCommentLines() {
         return commentLines;
     }

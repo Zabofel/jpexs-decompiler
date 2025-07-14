@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@ import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -30,9 +31,6 @@ import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.fail;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.fail;
 
 /**
  *
@@ -57,10 +55,11 @@ public class ActionScript2ClassesTest extends ActionScript2TestBase {
         assertNotNull(dia);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(dia, dia.getActions(), "", writer);
+            Action.actionsToSource(swf.getUninitializedAs2ClassTraits(), dia, dia.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         String expectedResult = cleanPCode("class " + BASE_TEST_PACKAGE + "." + testClassName + "\r\n"
                 + "{\r\n"
@@ -145,5 +144,93 @@ public class ActionScript2ClassesTest extends ActionScript2TestBase {
                 + "{\r\n"
                 + "trace(\"after _x1\");\r\n"
                 + "}\r\n");
+    }
+
+    @Test
+    public void testSetterGetter() {
+        compareSrc("TestSetterGetter", "var _myvar = 1;\r\n"
+                + "static var _mystvar = 2;\r\n"
+                + "var _myvarsetonly = 3;\r\n"
+                + "var _myvargetonly = 4;\r\n"
+                + "function TestSetterGetter()\r\n"
+                + "{\r\n"
+                + "}\r\n"
+                + "static function get mystvar()\r\n"
+                + "{\r\n"
+                + "return com.jpexs.flash.test.testcases.TestSetterGetter._mystvar;\r\n"
+                + "}\r\n"
+                + "static function set mystvar(val)\r\n"
+                + "{\r\n"
+                + "com.jpexs.flash.test.testcases.TestSetterGetter._mystvar = val;\r\n"
+                + "}\r\n"
+                + "function get myvar()\r\n"
+                + "{\r\n"
+                + "return this._myvar;\r\n"
+                + "}\r\n"
+                + "function set myvar(val)\r\n"
+                + "{\r\n"
+                + "this._myvar = val;\r\n"
+                + "}\r\n"
+                + "function get myvargetonly()\r\n"
+                + "{\r\n"
+                + "return this._myvargetonly;\r\n"
+                + "}\r\n"
+                + "function set myvarsetonly(val)\r\n"
+                + "{\r\n"
+                + "this._myvarsetonly = val;\r\n"
+                + "}\r\n"
+                + "function classic()\r\n"
+                + "{\r\n"
+                + "trace(\"okay\");\r\n"
+                + "}\r\n");
+    }
+
+    @Test
+    public void testCallSetterGetter() {
+        compareSrc("TestCallSetterGetter", "   var myobj;\n"
+                + "   function TestCallSetterGetter()\n"
+                + "   {\n"
+                + "   }\n"
+                + "   function testSetterCall()\n"
+                + "   {\n"
+                + "      this.myobj.myvar = 5;\n"
+                + "   }\n"
+                + "   function testGetterCall()\n"
+                + "   {\n"
+                + "      return this.myobj.myvar;\n"
+                + "   }\n"
+                + "   function testStatGetterCall()\n"
+                + "   {\n"
+                + "      return com.jpexs.flash.test.testcases.TestSetterGetter.mystvar;\n"
+                + "   }\n"
+                + "   function testStatSetterCall(val)\n"
+                + "   {\n"
+                + "      com.jpexs.flash.test.testcases.TestSetterGetter.mystvar = 6;\n"
+                + "   }");
+    }
+
+    @Test
+    public void testReturnInConstructor() {
+        compareSrc("TestReturnInConstructor", "   function TestReturnInConstructor()\n"
+                + "   {\n"
+                + "      var _loc1_ = 3;\n"
+                + "      if(_loc1_ == 3)\n"
+                + "      {\n"
+                + "         trace(\"A\");\n"
+                + "         return;\n"
+                + "      }\n"
+                + "      trace(\"B\");\n"
+                + "   }\n"
+                + "   function func()\n"
+                + "   {\n"
+                + "      var _loc1_ = 3;\n"
+                + "      if(_loc1_ == 3)\n"
+                + "      {\n"
+                + "         trace(\"A\");\n"
+                + "         return undefined;\n"
+                + "      }\n"
+                + "      trace(\"B\");\n"
+                + "      return 5;\n"
+                + "   }");
     }
 }

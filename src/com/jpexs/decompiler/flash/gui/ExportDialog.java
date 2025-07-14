@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.abc.ScriptPack;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.modes.BinaryDataExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.ButtonExportMode;
+import com.jpexs.decompiler.flash.exporters.modes.Font4ExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.FontExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.FrameExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.ImageExportMode;
@@ -32,10 +33,11 @@ import com.jpexs.decompiler.flash.exporters.modes.SpriteExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.SymbolClassExportMode;
 import com.jpexs.decompiler.flash.exporters.modes.TextExportMode;
 import com.jpexs.decompiler.flash.gui.tagtree.TagTreeModel;
-import com.jpexs.decompiler.flash.tags.DefineBinaryDataTag;
+import com.jpexs.decompiler.flash.tags.DefineFont4Tag;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.DefineVideoStreamTag;
 import com.jpexs.decompiler.flash.tags.base.ASMSource;
+import com.jpexs.decompiler.flash.tags.base.BinaryDataInterface;
 import com.jpexs.decompiler.flash.tags.base.ButtonTag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.tags.base.ImageTag;
@@ -45,16 +47,23 @@ import com.jpexs.decompiler.flash.tags.base.SoundTag;
 import com.jpexs.decompiler.flash.tags.base.SymbolClassTypeTag;
 import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.timeline.Frame;
+import com.jpexs.decompiler.flash.timeline.FrameScript;
 import com.jpexs.decompiler.flash.timeline.TagScript;
+import com.jpexs.decompiler.flash.treeitems.AS3ClassTreeItem;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import java.awt.BorderLayout;
 import java.awt.Container;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -64,7 +73,6 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 
 /**
- *
  * @author JPEXS
  */
 public class ExportDialog extends AppDialog {
@@ -83,6 +91,7 @@ public class ExportDialog extends AppDialog {
         TagTreeModel.FOLDER_SPRITES,
         TagTreeModel.FOLDER_BUTTONS,
         TagTreeModel.FOLDER_FONTS,
+        "fonts4",
         TagTreeModel.FOLDER_MORPHSHAPES,
         "symbolclass"
     };
@@ -94,12 +103,13 @@ public class ExportDialog extends AppDialog {
         {ImageTag.class},
         {DefineVideoStreamTag.class},
         {SoundTag.class},
-        {ASMSource.class, ScriptPack.class, TagScript.class},
-        {DefineBinaryDataTag.class},
+        {ASMSource.class, ScriptPack.class, TagScript.class, FrameScript.class},
+        {BinaryDataInterface.class},
         {Frame.class},
         {Frame.class},
         {ButtonTag.class},
         {FontTag.class},
+        {DefineFont4Tag.class},
         {MorphShapeTag.class},
         {SymbolClassTypeTag.class}
     };
@@ -117,6 +127,7 @@ public class ExportDialog extends AppDialog {
         SpriteExportMode.class,
         ButtonExportMode.class,
         FontExportMode.class,
+        Font4ExportMode.class,
         MorphShapeExportMode.class,
         SymbolClassExportMode.class
     };
@@ -136,7 +147,13 @@ public class ExportDialog extends AppDialog {
 
     private final JCheckBox selectAllCheckBox;
 
-    private JTextField zoomTextField = new JTextField();
+    private JTextField zoomTextField = new JTextField(4);
+
+    private JCheckBox embedCheckBox;
+
+    private JCheckBox resampleWavCheckBox;
+
+    private JCheckBox transparentFrameBackgroundCheckBox;
 
     public <E> E getValue(Class<E> option) {
         for (int i = 0; i < optionClasses.length; i++) {
@@ -159,8 +176,24 @@ public class ExportDialog extends AppDialog {
         return false;
     }
 
+    public boolean isEmbedEnabled() {
+        return embedCheckBox.isSelected();
+    }
+
+    public boolean isResampleWavEnabled() {
+        return resampleWavCheckBox.isSelected();
+    }
+
+    public boolean isTransparentFrameBackgroundEnabled() {
+        return transparentFrameBackgroundCheckBox.isSelected();
+    }
+
     public double getZoom() {
-        return Double.parseDouble(zoomTextField.getText()) / 100;
+        try {
+            return Double.parseDouble(zoomTextField.getText()) / 100;
+        } catch (NumberFormatException nfe) {
+            return 1;
+        }
     }
 
     private void saveConfig() {
@@ -178,6 +211,15 @@ public class ExportDialog extends AppDialog {
 
         Configuration.lastSelectedExportZoom.set(Double.parseDouble(zoomTextField.getText()) / 100);
         Configuration.lastSelectedExportFormats.set(cfg.toString());
+        if (embedCheckBox.isVisible()) {
+            Configuration.lastExportEnableEmbed.set(embedCheckBox.isSelected());
+        }
+        if (resampleWavCheckBox.isVisible()) {
+            Configuration.lastExportResampleWav.set(resampleWavCheckBox.isSelected());
+        }
+        if (transparentFrameBackgroundCheckBox.isVisible()) {
+            Configuration.lastExportTransparentBackground.set(transparentFrameBackgroundCheckBox.isSelected());
+        }
     }
 
     private boolean optionCanHandle(int optionIndex, Object e) {
@@ -198,14 +240,23 @@ public class ExportDialog extends AppDialog {
         }
         return false;
     }
+    
+    private String translateTitle(String title) {
+        return translate("titleFormat").replace("%title%", translate(title));
+    }
 
-    public ExportDialog(List<TreeItem> exportables) {
+    public ExportDialog(Window owner, List<TreeItem> exportables) {
+        super(owner);
         setTitle(translate("dialog.title"));
         setResizable(false);
 
         Container cnt = getContentPane();
         cnt.setLayout(new BorderLayout());
-        JPanel comboPanel = new JPanel(null);
+        JPanel comboPanel = new JPanel(new GridBagLayout());
+        comboPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2, 2, 2, 2);
+        
         int labWidth = 0;
         boolean[] exportableExistsArray = new boolean[optionNames.length];
         for (int i = 0; i < optionNames.length; i++) {
@@ -247,16 +298,10 @@ public class ExportDialog extends AppDialog {
 
         }
 
-        int comboWidth = 200;
-        int checkBoxWidth;
-        int top = 10;
-
         List<String> exportFormats = Arrays.asList(exportFormatsArr);
         combos = new JComboBox[optionNames.length];
         checkBoxes = new JCheckBox[optionNames.length];
         selectAllCheckBox = new JCheckBox();
-        checkBoxWidth = selectAllCheckBox.getPreferredSize().width;
-        selectAllCheckBox.setBounds(10 + labWidth + 10 + comboWidth + 10, top, checkBoxWidth, selectAllCheckBox.getPreferredSize().height);
         selectAllCheckBox.setSelected(true);
         selectAllCheckBox.addActionListener((ActionEvent e) -> {
             boolean selected = selectAllCheckBox.isSelected();
@@ -266,8 +311,11 @@ public class ExportDialog extends AppDialog {
                 }
             }
         });
-        comboPanel.add(selectAllCheckBox);
-        top += selectAllCheckBox.getHeight();
+        gbc.gridy = 0;
+        gbc.gridx = 3;
+        comboPanel.add(selectAllCheckBox, gbc);        
+        
+        List<Class> visibleOptionClasses = new ArrayList<>();
 
         boolean zoomable = false;
         for (int i = 0; i < optionNames.length; i++) {
@@ -288,11 +336,8 @@ public class ExportDialog extends AppDialog {
             if (itemIndex > -1) {
                 combos[i].setSelectedIndex(itemIndex);
             }
-
-            combos[i].setBounds(10 + labWidth + 10, top, comboWidth, combos[i].getPreferredSize().height);
-
+            
             checkBoxes[i] = new JCheckBox();
-            checkBoxes[i].setBounds(10 + labWidth + 10 + comboWidth + 10, top, checkBoxWidth, checkBoxes[i].getPreferredSize().height);
             checkBoxes[i].setSelected(true);
 
             if (!exportableExistsArray[i]) {
@@ -303,32 +348,95 @@ public class ExportDialog extends AppDialog {
                 zoomable = true;
             }
 
-            JLabel lab = new JLabel(translate(optionNames[i]));
-            lab.setBounds(10, top, lab.getPreferredSize().width, lab.getPreferredSize().height);
-            comboPanel.add(lab);
-            comboPanel.add(checkBoxes[i]);
-            comboPanel.add(combos[i]);
-            top += combos[i].getHeight();
+            visibleOptionClasses.add(c);
+
+            JLabel lab = new JLabel(translateTitle(optionNames[i]));
+            gbc.gridy++;
+            gbc.gridx = 0;
+            gbc.anchor = GridBagConstraints.LINE_END;
+            comboPanel.add(lab, gbc);
+            gbc.gridx++;
+            gbc.anchor = GridBagConstraints.LINE_START;
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.gridwidth = 2;
+            comboPanel.add(combos[i], gbc);
+            gbc.gridx += 2;      
+            gbc.gridwidth = 1;
+            gbc.fill = GridBagConstraints.NONE;
+            gbc.anchor = GridBagConstraints.CENTER;
+            comboPanel.add(checkBoxes[i], gbc);
+            lab.setLabelFor(combos[i]);
+        }                
+
+        embedCheckBox = new JCheckBox(translate("embed"));
+        embedCheckBox.setVisible(false);
+
+        boolean hasAs3 = false;
+        if (exportables == null) {
+            hasAs3 = true; //??
+        } else {
+            for (TreeItem ti : exportables) {
+                if (ti instanceof AS3ClassTreeItem) {
+                    hasAs3 = true;
+                    break;
+                }
+            }
+        }
+        
+        gbc.gridx = 0;            
+        gbc.gridwidth = 4;   
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.LINE_START;
+        
+        if (hasAs3 && visibleOptionClasses.contains(ScriptExportMode.class)) {
+            gbc.gridy++;
+            embedCheckBox.setVisible(true);
+            comboPanel.add(embedCheckBox, gbc);         
+            if (Configuration.lastExportEnableEmbed.get()) {
+                embedCheckBox.setSelected(true);
+            }
         }
 
-        int zoomWidth = 50;
+        resampleWavCheckBox = new JCheckBox(translate("resampleWav"));
+        resampleWavCheckBox.setVisible(false);
+
+        if (embedCheckBox.isVisible() || visibleOptionClasses.contains(SoundExportMode.class)) {
+            gbc.gridy++;
+            resampleWavCheckBox.setVisible(true);
+            comboPanel.add(resampleWavCheckBox, gbc);
+            if (Configuration.lastExportResampleWav.get()) {
+                resampleWavCheckBox.setSelected(true);
+            }
+        }
+
+        transparentFrameBackgroundCheckBox = new JCheckBox(translate("transparentFrameBackground"));
+        transparentFrameBackgroundCheckBox.setVisible(false);
+        if (visibleOptionClasses.contains(FrameExportMode.class)) {
+            gbc.gridy++;
+            transparentFrameBackgroundCheckBox.setVisible(true);
+            comboPanel.add(transparentFrameBackgroundCheckBox, gbc);
+            if (Configuration.lastExportTransparentBackground.get()) {
+                transparentFrameBackgroundCheckBox.setSelected(true);
+            }
+        }
+
         if (zoomable) {
-            top += 2;
-            JLabel zlab = new JLabel(translate("zoom"));
-            zlab.setBounds(10, top + 4, zlab.getPreferredSize().width, zlab.getPreferredSize().height);
-            zoomTextField.setBounds(10 + labWidth + 10, top, zoomWidth, zoomTextField.getPreferredSize().height);
-            JLabel pctLabel = new JLabel(translate("zoom.percent"));
-            pctLabel.setBounds(10 + labWidth + 10 + zoomWidth + 5, top + 4, 20, pctLabel.getPreferredSize().height);
-
-            comboPanel.add(zlab);
-            comboPanel.add(zoomTextField);
-            comboPanel.add(pctLabel);
-            top += zoomTextField.getHeight();
+            JLabel zlab = new JLabel(translateTitle("zoom"));
+            JLabel pctLabel = new JLabel(translate("zoom.percent"));   
+            zlab.setLabelFor(zoomTextField);
+            gbc.gridy++;
+            gbc.gridx = 0;
+            gbc.gridwidth = 1;            
+            gbc.anchor = GridBagConstraints.LINE_END;
+            comboPanel.add(zlab, gbc);
+            gbc.gridx++;
+            gbc.anchor = GridBagConstraints.LINE_START;
+            comboPanel.add(zoomTextField, gbc);
+            gbc.gridx++;
+            gbc.anchor = GridBagConstraints.LINE_START;            
+            comboPanel.add(pctLabel, gbc);
         }
 
-        Dimension dim = new Dimension(10 + labWidth + 10 + checkBoxWidth + 10 + comboWidth + 10, top + 10);
-        comboPanel.setMinimumSize(dim);
-        comboPanel.setPreferredSize(dim);
         cnt.add(comboPanel, BorderLayout.CENTER);
 
         JPanel buttonsPanel = new JPanel(new FlowLayout());
@@ -344,7 +452,7 @@ public class ExportDialog extends AppDialog {
         cnt.add(buttonsPanel, BorderLayout.SOUTH);
         pack();
         View.centerScreen(this);
-        View.setWindowIcon(this);
+        View.setWindowIcon(this, "export");
         getRootPane().setDefaultButton(okButton);
         setModal(true);
         String pct = "" + Configuration.lastSelectedExportZoom.get() * 100;

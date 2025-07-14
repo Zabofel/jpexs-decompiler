@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ import java.awt.image.BufferedImage;
 import java.io.Closeable;
 
 /**
- *
  * @author JPEXS
  */
 public interface MediaDisplay extends Closeable {
@@ -43,6 +42,8 @@ public interface MediaDisplay extends Closeable {
     public boolean isPlaying();
 
     public void setLoop(boolean loop);
+
+    public void setResample(boolean resample);
 
     public void gotoFrame(int frame);
 
@@ -67,4 +68,24 @@ public interface MediaDisplay extends Closeable {
     public void addEventListener(MediaDisplayListener listener);
 
     public void removeEventListener(MediaDisplayListener listener);
+
+    public Color getBackgroundColor();
+
+    public void setDisplayed(boolean value);
+
+    public boolean isDisplayed();
+
+    public void setFrozen(boolean value);
+
+    public boolean alwaysDisplay();
+
+    public void setMuted(boolean value);
+
+    public boolean isMutable();
+    
+    public boolean canUseSnapping();
+    
+    public boolean canHaveRuler();
+    
+    public void clearGuides();
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import com.jpexs.decompiler.flash.abc.RenameType;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
@@ -30,7 +31,6 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 
 /**
- *
  * @author JPEXS
  */
 public class RenameDialog extends AppDialog {
@@ -45,7 +45,8 @@ public class RenameDialog extends AppDialog {
 
     private int result = ERROR_OPTION;
 
-    public RenameDialog() {
+    public RenameDialog(Window owner) {
+        super(owner);
         setSize(300, 150);
         setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
         int renameType = Configuration.lastRenameType.get();

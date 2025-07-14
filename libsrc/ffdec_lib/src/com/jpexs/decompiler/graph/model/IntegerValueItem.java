@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,25 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 import java.util.Set;
 
 /**
+ * Integer value.
  *
  * @author JPEXS
  */
 public class IntegerValueItem extends GraphTargetItem implements IntegerValueTypeItem {
 
+    /**
+     * Integer value
+     */
     private final int intValue;
 
-    public IntegerValueItem(GraphSourceItem src, GraphSourceItem lineStartIns, int value) {
-        super(src, lineStartIns, PRECEDENCE_PRIMARY);
+    /**
+     * Constructor.
+     * 
+     * @param dialect Dialect
+     * @param src Source
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
+    public IntegerValueItem(GraphTargetDialect dialect, GraphSourceItem src, GraphSourceItem lineStartIns, int value) {
+        super(dialect, src, lineStartIns, PRECEDENCE_PRIMARY);
         this.intValue = value;
     }
 
@@ -63,4 +77,30 @@ public class IntegerValueItem extends GraphTargetItem implements IntegerValueTyp
     public int intValue() {
         return intValue;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 83 * hash + this.intValue;
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final IntegerValueItem other = (IntegerValueItem) obj;
+        if (this.intValue != other.intValue) {
+            return false;
+        }
+        return true;
+    }
+
 }

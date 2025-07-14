@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -31,11 +32,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Undefined value.
  *
  * @author JPEXS
  */
 public class UndefinedAVM2Item extends AVM2Item implements SimpleValue {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public UndefinedAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
     }
@@ -75,5 +82,25 @@ public class UndefinedAVM2Item extends AVM2Item implements SimpleValue {
     @Override
     public boolean isSimpleValue() {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        return hash;
     }
 }

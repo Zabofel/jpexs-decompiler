@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,23 +19,31 @@ package com.jpexs.decompiler.flash.action.swf5;
 import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.operations.BitXorActionItem;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * BitXor action - Bitwise XOR.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionBitXor extends Action {
 
+    /**
+     * Constructor.
+     */
     public ActionBitXor() {
-        super(0x62, 0);
+        super(0x62, 0, Utf8Helper.charsetName);
     }
 
     @Override
@@ -54,7 +62,7 @@ public class ActionBitXor extends Action {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem a = stack.pop();
         GraphTargetItem b = stack.pop();
         stack.push(new BitXorActionItem(this, lineStartAction, b, a));

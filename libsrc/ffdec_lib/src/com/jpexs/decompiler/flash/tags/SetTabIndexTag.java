@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -25,7 +26,7 @@ import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
 
 /**
- * Sets the index of an object within the tab order.
+ * SetTabIndex tag - sets the index of an object within the tab order.
  *
  * @author JPEXS
  */
@@ -51,7 +52,7 @@ public class SetTabIndexTag extends Tag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public SetTabIndexTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -60,9 +61,9 @@ public class SetTabIndexTag extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data bytes
+     * @throws IOException On I/O error
      */
     public SetTabIndexTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -79,7 +80,7 @@ public class SetTabIndexTag extends Tag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -25,14 +26,22 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Get length of a string.
  *
  * @author JPEXS
  */
 public class StringLengthActionItem extends ActionItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     */
     public StringLengthActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
     }
@@ -40,7 +49,7 @@ public class StringLengthActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("length");
-        writer.spaceBeforeCallParenthesies(1);
+        writer.spaceBeforeCallParenthesis(1);
         writer.append("(");
         value.toString(writer, localData);
         return writer.append(")");
@@ -56,6 +65,11 @@ public class StringLengthActionItem extends ActionItem {
         return getResult(value.getResult());
     }
 
+    /**
+     * Gets result.
+     * @param obj Object
+     * @return Result
+     */
     public static Double getResult(Object obj) {
         return EcmaScript.toNumberAs2(EcmaScript.toString(obj).length());
     }
@@ -68,5 +82,47 @@ public class StringLengthActionItem extends ActionItem {
     @Override
     public boolean hasReturnValue() {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GraphTargetItem other = (GraphTargetItem) obj;
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final GraphTargetItem other = (GraphTargetItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        return hash;
     }
 }

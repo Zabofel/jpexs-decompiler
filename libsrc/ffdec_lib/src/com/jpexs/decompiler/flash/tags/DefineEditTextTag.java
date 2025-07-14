@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,10 +27,12 @@ import com.jpexs.decompiler.flash.helpers.HighlightedText;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.helpers.hilight.HighlightSpecialType;
 import com.jpexs.decompiler.flash.tags.base.BoundedTag;
+import com.jpexs.decompiler.flash.tags.base.CharacterTag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.tags.base.MissingCharacterHandler;
 import com.jpexs.decompiler.flash.tags.base.RenderContext;
 import com.jpexs.decompiler.flash.tags.base.TextTag;
+import com.jpexs.decompiler.flash.tags.dynamictext.AdvancedTextRecord;
 import com.jpexs.decompiler.flash.tags.dynamictext.CharacterWithStyle;
 import com.jpexs.decompiler.flash.tags.dynamictext.DynamicTextModel;
 import com.jpexs.decompiler.flash.tags.dynamictext.GlyphCharacter;
@@ -40,6 +42,7 @@ import com.jpexs.decompiler.flash.tags.dynamictext.TextStyle;
 import com.jpexs.decompiler.flash.tags.dynamictext.Word;
 import com.jpexs.decompiler.flash.tags.enums.TextRenderMode;
 import com.jpexs.decompiler.flash.tags.text.ParsedSymbol;
+import com.jpexs.decompiler.flash.tags.text.SymbolType;
 import com.jpexs.decompiler.flash.tags.text.TextAlign;
 import com.jpexs.decompiler.flash.tags.text.TextLexer;
 import com.jpexs.decompiler.flash.tags.text.TextParseException;
@@ -53,6 +56,7 @@ import com.jpexs.decompiler.flash.types.RGBA;
 import com.jpexs.decompiler.flash.types.TEXTRECORD;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
 import com.jpexs.decompiler.flash.types.annotations.EnumValue;
+import com.jpexs.decompiler.flash.types.annotations.Multiline;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
@@ -65,6 +69,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Stack;
@@ -80,6 +85,7 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 /**
+ * DefineEditText tag - defines an editable text field.
  *
  * @author JPEXS
  */
@@ -172,6 +178,7 @@ public class DefineEditTextTag extends TextTag {
     public String variableName;
 
     @Conditional("hasText")
+    @Multiline
     public String initialText;
 
     public static final int ALIGN_LEFT = 0;
@@ -185,7 +192,7 @@ public class DefineEditTextTag extends TextTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineEditTextTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -197,9 +204,9 @@ public class DefineEditTextTag extends TextTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineEditTextTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -260,7 +267,7 @@ public class DefineEditTextTag extends TextTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -370,6 +377,9 @@ public class DefineEditTextTag extends TextTag {
     }
 
     private List<CharacterWithStyle> getTextWithStyle() {
+        if (swf == null) {
+            return new ArrayList<>();
+        }
         String str = "";
         TextStyle style = new TextStyle();
         if (fontClass != null) {
@@ -385,6 +395,7 @@ public class DefineEditTextTag extends TextTag {
         if (hasText) {
             str = initialText;
         }
+        style.leftMargin = leftMargin;
         final List<CharacterWithStyle> ret = new ArrayList<>();
         if (html) {
             SAXParserFactory factory = SAXParserFactory.newInstance();
@@ -401,6 +412,9 @@ public class DefineEditTextTag extends TextTag {
                             case "p":
                                 // todo: parse the following attribute:
                                 // align
+                                break;
+                            case "a":
+                                // todo: handle link - href, target attributes
                                 break;
                             case "b":
                                 style = style.clone();
@@ -419,35 +433,62 @@ public class DefineEditTextTag extends TextTag {
                                 break;
                             case "font":
                                 style = style.clone();
-                                String color = attributes.getValue("color");
+                                String color = unescape(attributes.getValue("color"));
                                 if (color != null) {
                                     if (color.startsWith("#")) {
-                                        style.textColor = new RGBA(Color.decode(color));
-                                    }
-                                }
-                                String size = attributes.getValue("size");
-                                if (size != null && size.length() > 0) {
-                                    char firstChar = size.charAt(0);
-                                    if (firstChar != '+' && firstChar != '-') {
-                                        int fontSize = Integer.parseInt(size);
-                                        style.fontHeight = (int) Math.round(fontSize * SWF.unitDivisor);
-                                        style.fontLeading = leading;
-                                    } else {
-                                        // todo: parse relative sizes
-                                    }
-                                }
-                                String face = attributes.getValue("face");
-                                 {
-                                    if (face != null && face.length() > 0) {
-                                        style.fontFace = face;
-                                        FontTag insideFont = swf.getFontByName(face);
-                                        style.font = insideFont;
-                                        if (insideFont != null) {
-                                            style.fontFace = null;
+                                        try {
+                                            if (color.length() == 7) { //#rrggbb
+                                                style.textColor = new RGBA(Color.decode(color));
+                                            } else if (color.length() == 9) { //#aarrggbb                                            
+                                                style.textColor = RGBA.fromHexARGB(color);
+                                                style.textColor.alpha = 255; //no alpha is allowed
+                                            }
+                                        } catch (NumberFormatException ex) {
+                                            //do not change textColor
                                         }
+                                        
                                     }
                                 }
-                                // todo: parse the following attributes: letterSpacing, kerning
+                                String size = unescape(attributes.getValue("size"));
+                                if (size != null && size.length() > 0) {                                    
+                                    try {
+                                        char firstChar = size.charAt(0);
+                                        if (firstChar != '+' && firstChar != '-') {
+                                            int fontSize = Integer.parseInt(size);
+                                            style.fontHeight = (int) Math.round(fontSize * SWF.unitDivisor);
+                                        } else {
+                                            int fontSizeDelta = (int) Math.round(Integer.parseInt(size.substring(1)) * SWF.unitDivisor);
+                                            if (firstChar == '+') {
+                                                style.fontHeight = style.fontHeight + fontSizeDelta;
+                                            } else {
+                                                style.fontHeight = style.fontHeight - fontSizeDelta;
+                                            }
+                                        }
+                                        style.fontLeading = leading;
+                                    } catch (NumberFormatException nfe) {
+                                        //do not change fontHeight or leading
+                                    }
+                                }
+                                String face = unescape(attributes.getValue("face"));
+
+                                if (face != null && face.length() > 0) {
+                                    style.fontFace = face;
+                                }
+
+                                String letterspacing = unescape(attributes.getValue("letterSpacing"));
+                                if (letterspacing != null && letterspacing.length() > 0) {
+                                    try {
+                                        style.letterSpacing = Double.parseDouble(letterspacing);
+                                    } catch (NumberFormatException nfe) {
+                                        //do not change letterSpacing
+                                    }                                    
+                                }
+
+                                String kerning = unescape(attributes.getValue("kerning"));
+                                if (kerning != null && kerning.length() > 0) {
+                                    style.kerning = kerning.equals("1");
+                                }
+
                                 styles.add(style);
                                 break;
                             case "br":
@@ -458,7 +499,6 @@ public class DefineEditTextTag extends TextTag {
                                 ret.add(cs);
                                 break;
                         }
-                        //ret = entitiesReplace(ret);
                     }
 
                     @Override
@@ -480,19 +520,51 @@ public class DefineEditTextTag extends TextTag {
                         }
                     }
 
+                    private String unescape(String txt) {
+                        if (txt == null) {
+                            return null;
+                        }
+                        txt = txt.replace("/{entity-nbsp}", "\u00A0");
+                        txt = txt.replace("/{entity-lt}", "<");
+                        txt = txt.replace("/{entity-gt}", ">");
+                        txt = txt.replace("/{entity-quot}", "\"");
+                        txt = txt.replace("/{entity-amp}", "&");
+                        txt = txt.replace("/{entity-apos}", "'");
+                        return txt;
+                    }
+
                     @Override
                     public void characters(char[] ch, int start, int length) throws SAXException {
-                        String txt = new String(ch, start, length);
+                        String txt = unescape(new String(ch, start, length));
                         TextStyle style = styles.peek();
+                        if (style.fontFace != null && useOutlines) {
+                            CharacterTag ct = swf.getCharacterByExportName(style.fontFace);
+                            if (ct != null && (ct instanceof FontTag)) {
+                                style.font = (FontTag) ct;
+                            } else {
+                                style.font = swf.getFontByNameInTag(style.fontFace, style.bold, style.italic);
+                            }
+                            if (style.font == null) {
+                                style.fontFace = null;
+                            }
+                        }
                         addCharacters(ret, txt, style);
                     }
                 };
+
+                str = str.replace("&nbsp;", "/{entity-nbsp}");
+                str = str.replace("&lt;", "/{entity-lt}");
+                str = str.replace("&gt;", "/{entity-gt}");
+                str = str.replace("&quot;", "/{entity-quot}");
+                str = str.replace("&amp;", "/{entity-amp}");
+                str = str.replace("&apos;", "/{entity-apos}");
+                str = str.replace("&", "&amp;");
+
                 str = "<!DOCTYPE html [\n"
-                        + "    <!ENTITY nbsp \"&#160;\"> \n"
                         + "]><root>" + str + "</root>";
                 saxParser.parse(new ByteArrayInputStream(str.getBytes(Utf8Helper.charset)), handler);
             } catch (ParserConfigurationException | SAXException | IOException ex) {
-                Logger.getLogger(DefineEditTextTag.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(DefineEditTextTag.class.getName()).log(Level.SEVERE, "Error parsing text " + getCharacterId(), ex);
             }
         } else {
             addCharacters(ret, str, style);
@@ -591,6 +663,7 @@ public class DefineEditTextTag extends TextTag {
             String text = initialText.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]");
             writer.hilightSpecial(text, HighlightSpecialType.TEXT);
         }
+        writer.finishHilights();
         return new HighlightedText(writer);
     }
 
@@ -626,9 +699,10 @@ public class DefineEditTextTag extends TextTag {
             int textIdx = 0;
             while ((s = lexer.yylex()) != null) {
                 switch (s.type) {
-                    case PARAMETER:
-                        String paramName = (String) s.values[0];
-                        String paramValue = (String) s.values[1];
+                    case PARAMETER_IDENTIFIER:
+                        String paramName = (String) s.value;
+                        s = lexer.yylex();                        
+                        String paramValue = (String) s.value;
                         switch (paramName) {
                             case "xmin":
                                 try {
@@ -725,7 +799,7 @@ public class DefineEditTextTag extends TextTag {
                                 fontClass = paramValue;
                                 break;
                             case "height":
-                                try {//TODO: font parameter must be also present
+                                try { //TODO: font parameter must be also present
                                     fontHeight = Integer.parseInt(paramValue);
                                     hasFont = true;
                                 } catch (NumberFormatException ne) {
@@ -801,7 +875,7 @@ public class DefineEditTextTag extends TextTag {
                         }
                         break;
                     case TEXT:
-                        String s2 = (String) s.values[0];
+                        String s2 = (String) s.value;
                         if (s2 == null) {
                             s2 = "";
                         }
@@ -905,6 +979,11 @@ public class DefineEditTextTag extends TextTag {
     }
 
     @Override
+    public RECT getRectWithStrokes() {
+        return getRect();
+    }
+
+    @Override
     public int getCharacterId() {
         return characterID;
     }
@@ -915,7 +994,7 @@ public class DefineEditTextTag extends TextTag {
     }
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
         if (hasFont) {
             needed.add(fontId);
         }
@@ -923,7 +1002,7 @@ public class DefineEditTextTag extends TextTag {
             List<CharacterWithStyle> chs = getTextWithStyle();
             for (CharacterWithStyle ch : chs) {
                 if (ch.style.font != null) {
-                    needed.add(ch.style.font.getFontId());
+                    needed.add(swf.getCharacterId(ch.style.font));
                 }
             }
         }
@@ -956,12 +1035,12 @@ public class DefineEditTextTag extends TextTag {
     }
 
     @Override
-    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, ColorTransform colorTransform) {
+    public void toImage(int frame, int time, int ratio, RenderContext renderContext, SerializableImage image, SerializableImage fullImage, boolean isClip, Matrix transformation, Matrix strokeTransformation, Matrix absoluteTransformation, Matrix fullTransformation, ColorTransform colorTransform, double unzoom, boolean sameImage, ExportRectangle viewRect, ExportRectangle viewRectRaw, boolean scaleStrokes, int drawMode, int blendMode, boolean canUseSmoothing) {
         render(TextRenderMode.BITMAP, image, null, null, transformation, colorTransform, 1);
     }
 
     @Override
-    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level) {
+    public void toSVG(SVGExporter exporter, int ratio, ColorTransform colorTransform, int level, Matrix transformation, Matrix strokeTransformation) {
         render(TextRenderMode.SVG, null, exporter, null, new Matrix(), colorTransform, 1);
     }
 
@@ -983,191 +1062,12 @@ public class DefineEditTextTag extends TextTag {
                     drawBorderHtmlCanvas(swf, htmlCanvasBuilder, borderColor, fillColor, getRect(), getTextMatrix(), colorTransform, zoom);
                     break;
                 case SVG:
-                    drawBorderSVG(swf, svgExporter, borderColor, fillColor, getRect(), getTextMatrix(), colorTransform, zoom);
+                    drawBorderSVG(swf, svgExporter, borderColor, fillColor, getRect(), getTextMatrix(), transformation, colorTransform, zoom);
                     break;
             }
         }
         if (hasText) {
-            DynamicTextModel textModel = new DynamicTextModel();
-            List<CharacterWithStyle> txt = getTextWithStyle();
-            TextStyle lastStyle = null;
-            char prevChar = 0;
-            boolean lastWasWhiteSpace = false;
-            for (int i = 0; i < txt.size(); i++) {
-                CharacterWithStyle cs = txt.get(i);
-                char c = cs.character;
-                if (c != '\r' && c != '\n') {
-                    // create new SameStyleTextRecord for all words and all diffrent style text parts
-                    if (lastWasWhiteSpace && !Character.isWhitespace(c)) {
-                        textModel.newWord();
-                        lastWasWhiteSpace = false;
-                    }
-                    if (cs.style != lastStyle) {
-                        lastStyle = cs.style;
-                        textModel.style = lastStyle;
-                        textModel.newRecord();
-                    }
-                    Character nextChar = null;
-                    if (i + 1 < txt.size()) {
-                        nextChar = txt.get(i + 1).character;
-                    }
-
-                    FontTag font = lastStyle.font;
-                    DynamicTextGlyphEntry ge = new DynamicTextGlyphEntry();
-                    ge.fontFace = lastStyle.fontFace;
-                    if (ge.fontFace == null && font != null) {
-                        ge.fontFace = font.getFontName();
-                    }
-
-                    ge.fontStyle = (lastStyle.bold ? Font.BOLD : 0) | (lastStyle.italic ? Font.ITALIC : 0);
-                    ge.character = c;
-
-                    ge.glyphIndex = -1; // always use system character glyphs in edit text
-
-                    String fontName = ge.fontFace != null ? ge.fontFace : FontTag.getDefaultFontName();
-                    int fontStyle = font == null ? ge.fontStyle : font.getFontStyle();
-                    ge.glyphAdvance = (int) Math.round(SWF.unitDivisor * FontTag.getSystemFontAdvance(fontName, fontStyle, (int) (lastStyle.fontHeight / SWF.unitDivisor), c, nextChar));
-
-                    textModel.addGlyph(c, ge);
-                    if (Character.isWhitespace(c)) {
-                        lastWasWhiteSpace = true;
-                    }
-                } else if (multiline) {
-                    textModel.newParagraph();
-                }
-                prevChar = c;
-            }
-
-            textModel.calculateTextWidths();
-            List<List<SameStyleTextRecord>> lines;
-            if (multiline && wordWrap) {
-                lines = new ArrayList<>();
-                for (Paragraph paragraph : textModel.paragraphs) {
-                    List<SameStyleTextRecord> line = new ArrayList<>();
-                    int lineLength = 0;
-                    for (Word word : paragraph.words) {
-                        if (lineLength + word.width <= bounds.getWidth()) {
-                            line.addAll(word.records);
-                            lineLength += word.width;
-                        } else {
-                            lines.add(line);
-                            line = new ArrayList<>();
-                            line.addAll(word.records);
-                            lineLength = 0;
-                        }
-                    }
-                    if (!line.isEmpty()) {
-                        lines.add(line);
-                    }
-                }
-            } else {
-                lines = new ArrayList<>();
-                for (Paragraph paragraph : textModel.paragraphs) {
-                    List<SameStyleTextRecord> line = new ArrayList<>();
-                    for (Word word : paragraph.words) {
-                        for (SameStyleTextRecord tr : word.records) {
-                            line.add(tr);
-                        }
-                    }
-                    lines.add(line);
-                }
-            }
-
-            // remove spaces after last word
-            for (List<SameStyleTextRecord> line : lines) {
-                boolean removed = true;
-                while (removed) {
-                    removed = false;
-                    while (line.size() > 0 && line.get(line.size() - 1).glyphEntries.isEmpty()) {
-                        line.remove(line.size() - 1);
-                        removed = true;
-                    }
-                    if (line.size() > 0) {
-                        SameStyleTextRecord lastRecord = line.get(line.size() - 1);
-                        while (lastRecord.glyphEntries.size() > 0
-                                && Character.isWhitespace(lastRecord.glyphEntries.get(lastRecord.glyphEntries.size() - 1).character)) {
-                            lastRecord.glyphEntries.remove(lastRecord.glyphEntries.size() - 1);
-                            removed = true;
-                        }
-                    }
-                }
-            }
-
-            textModel.calculateTextWidths();
-
-            List<TEXTRECORD> allTextRecords = new ArrayList<>();
-            int lastHeight = 0;
-            int yOffset = -leading;
-            for (List<SameStyleTextRecord> line : lines) {
-                int width = 0;
-                int currentOffset = 0;
-                if (line.isEmpty()) {
-                    currentOffset = lastHeight;
-                } else {
-                    for (SameStyleTextRecord tr : line) {
-                        width += tr.width;
-                        int lineHeight = tr.style.fontHeight + tr.style.fontLeading;
-                        lastHeight = lineHeight;
-                        if (lineHeight > currentOffset) {
-                            currentOffset = lineHeight;
-                        }
-                    }
-                }
-                yOffset += currentOffset;
-                int alignOffset = 0;
-                switch (align) {
-                    case ALIGN_LEFT:
-                        alignOffset = 0;
-                        break;
-                    case ALIGN_RIGHT:
-                        alignOffset = bounds.getWidth() - width;
-                        break;
-                    case ALIGN_CENTER:
-                        alignOffset = (bounds.getWidth() - width) / 2;
-                        break;
-                    case ALIGN_JUSTIFY:
-                        // todo;
-                        break;
-                }
-                for (SameStyleTextRecord tr : line) {
-                    tr.xOffset = alignOffset;
-                    alignOffset += tr.width;
-                }
-                for (SameStyleTextRecord tr : line) {
-                    TEXTRECORD tr2 = new TEXTRECORD();
-                    int fid = fontId;
-                    if (fontClass != null) {
-                        FontTag ft = swf.getFontByClass(fontClass);
-                        if (ft != null) {
-                            fid = ft.getFontId();
-                        }
-                    }
-                    if (tr.style.font != null) {
-                        fid = tr.style.font.getFontId();
-                    }
-
-                    tr2.styleFlagsHasFont = fid != 0;
-                    tr2.fontId = fid;
-                    tr2.textHeight = tr.style.fontHeight;
-                    if (tr.style.textColor != null) {
-                        tr2.styleFlagsHasColor = true;
-                        tr2.textColorA = tr.style.textColor;
-                    }
-                    // always add xOffset, because no xOffset and 0 xOffset is diffrent in text rendering
-                    tr2.styleFlagsHasXOffset = true;
-                    tr2.xOffset = tr.xOffset;
-                    if (yOffset != 0) {
-                        tr2.styleFlagsHasYOffset = true;
-                        tr2.yOffset = yOffset;
-                    }
-                    tr2.glyphEntries = new ArrayList<>(tr.glyphEntries.size());
-                    for (GlyphCharacter ge : tr.glyphEntries) {
-                        tr2.glyphEntries.add(ge.glyphEntry);
-                    }
-                    allTextRecords.add(tr2);
-                }
-            }
-
+            List<TEXTRECORD> allTextRecords = getTextRecords(swf);
             switch (renderMode) {
                 case BITMAP:
                     staticTextToImage(swf, allTextRecords, 2, image, getTextMatrix(), transformation, colorTransform);
@@ -1176,10 +1076,263 @@ public class DefineEditTextTag extends TextTag {
                     staticTextToHtmlCanvas(zoom, swf, allTextRecords, 2, htmlCanvasBuilder, getBounds(), getTextMatrix(), colorTransform);
                     break;
                 case SVG:
-                    staticTextToSVG(swf, allTextRecords, 2, svgExporter, getBounds(), getTextMatrix(), colorTransform, zoom);
+                    staticTextToSVG(swf, allTextRecords, 2, svgExporter, getBounds(), getTextMatrix(), colorTransform, zoom, transformation);
                     break;
             }
         }
+    }
+
+    public List<TEXTRECORD> getTextRecords(SWF swf) {
+        DynamicTextModel textModel = new DynamicTextModel();
+        List<CharacterWithStyle> txt = getTextWithStyle();
+        TextStyle lastStyle = null;
+        char prevChar = 0;
+        boolean lastWasWhiteSpace = false;
+        for (int i = 0; i < txt.size(); i++) {
+            CharacterWithStyle cs = txt.get(i);
+            char c = cs.character;
+            if (c != '\r' && c != '\n') {
+                // create new SameStyleTextRecord for all words and all different style text parts
+                if (lastWasWhiteSpace && !Character.isWhitespace(c)) {
+                    textModel.newWord();
+                    lastWasWhiteSpace = false;
+                }
+                if (cs.style != lastStyle) {
+                    lastStyle = cs.style;
+                    textModel.style = lastStyle;
+                    textModel.newRecord();
+                }
+                Character nextChar = null;
+                if (i + 1 < txt.size()) {
+                    nextChar = txt.get(i + 1).character;
+                }
+
+                FontTag font = lastStyle.font;
+                DynamicTextGlyphEntry ge = new DynamicTextGlyphEntry();
+                ge.fontFace = lastStyle.fontFace;
+                if (ge.fontFace == null && font != null) {
+                    ge.fontFace = font.getFontNameIntag();
+                }
+
+                ge.fontStyle = (lastStyle.bold ? Font.BOLD : 0) | (lastStyle.italic ? Font.ITALIC : 0);
+                ge.character = c;
+
+                if (useOutlines && font != null) {
+                    ge.glyphIndex = font.charToGlyph(c);
+                } else {
+                    ge.glyphIndex = -1;
+                }
+
+                String fontName = ge.fontFace != null ? ge.fontFace : FontTag.getDefaultFontName();
+                int fontStyle = font == null ? ge.fontStyle : font.getFontStyle();
+                ge.glyphAdvance = ge.glyphIndex == -1 ? (int) Math.round(SWF.unitDivisor * FontTag.getSystemFontAdvance(fontName, fontStyle, (int) (lastStyle.fontHeight / SWF.unitDivisor), c, lastStyle.kerning ? nextChar : null))
+                        : (int) Math.round(font.getGlyphAdvance(ge.glyphIndex) / font.getDivider() * lastStyle.fontHeight / 1024);
+                ge.glyphAdvance += lastStyle.letterSpacing * SWF.unitDivisor;
+                if (useOutlines && lastStyle.kerning && font != null && font.hasLayout()) {
+                    if (nextChar != null) {
+                        ge.glyphAdvance += font.getCharKerningAdjustment(c, nextChar) / font.getDivider();
+                    }
+                }
+                textModel.addGlyph(c, ge);
+                if (Character.isWhitespace(c)) {
+                    lastWasWhiteSpace = true;
+                }
+            } else if (multiline) {
+                textModel.newParagraph();
+            }
+            prevChar = c;
+        }
+
+        textModel.calculateTextWidths();
+
+        Set<Integer> noIndentLineIndices = new HashSet<>();
+
+        List<List<SameStyleTextRecord>> lines;
+        if (multiline && wordWrap) {
+            lines = new ArrayList<>();
+            for (Paragraph paragraph : textModel.paragraphs) {
+                List<SameStyleTextRecord> line = new ArrayList<>();
+                int lineLength = 0;
+                for (Word word : paragraph.words) {
+                    int indentVal = noIndentLineIndices.contains(lines.size()) ? 0 : indent;
+                    int maxLineWidth = bounds.getWidth() - leftMargin - indentVal;
+                    if (word.width > maxLineWidth) {
+                        List<SameStyleTextRecord> recs = new ArrayList<>();
+                        for (int i = 0; i < word.records.size(); i++) {
+                            SameStyleTextRecord rec = word.records.get(i);
+                            for (int g = 0; g < rec.glyphEntries.size(); g++) {
+                                GlyphCharacter gc = rec.glyphEntries.get(g);
+                                int ga = gc.glyphEntry.glyphAdvance;
+                                indentVal = noIndentLineIndices.contains(lines.size()) ? 0 : indent;
+                                maxLineWidth = bounds.getWidth() - leftMargin - indentVal;
+                                if (lineLength + ga > maxLineWidth) {
+                                    recs.add(rec);
+                                    line.addAll(recs);
+                                    lines.add(line);
+
+                                    recs = new ArrayList<>();
+                                    SameStyleTextRecord rec2 = new SameStyleTextRecord();
+                                    rec2.style = rec.style.clone();
+                                    rec2.glyphEntries = new ArrayList<>();
+                                    int glen = rec.glyphEntries.size();
+                                    for (int g2 = g; g2 < glen; g2++) {
+                                        rec2.glyphEntries.add(rec.glyphEntries.remove(g));
+                                    }
+                                    rec2.calculateTextWidths();
+                                    rec.calculateTextWidths();
+
+                                    rec = rec2;
+                                    g = 0;
+
+                                    noIndentLineIndices.add(lines.size());
+                                    line = new ArrayList<>();
+                                    lineLength = 0;
+                                }
+                                lineLength += ga;
+                            }
+                            recs.add(rec);
+                        }
+                        if (!recs.isEmpty()) {
+                            line.addAll(recs);
+                        }
+                    } else if (lineLength + word.width <= maxLineWidth) {
+                        line.addAll(word.records);
+                        lineLength += word.width;
+                    } else {
+                        lines.add(line);
+                        noIndentLineIndices.add(lines.size());
+                        line = new ArrayList<>();
+                        line.addAll(word.records);
+                        lineLength = 0;
+                    }
+                }
+                if (!line.isEmpty()) {
+                    lines.add(line);
+                }
+            }
+        } else {
+            lines = new ArrayList<>();
+            for (Paragraph paragraph : textModel.paragraphs) {
+                List<SameStyleTextRecord> line = new ArrayList<>();
+                for (Word word : paragraph.words) {
+                    for (SameStyleTextRecord tr : word.records) {
+                        line.add(tr);
+                    }
+                }
+                lines.add(line);
+            }
+        }
+
+        // remove spaces after last word
+        for (List<SameStyleTextRecord> line : lines) {
+            boolean removed = true;
+            while (removed) {
+                removed = false;
+                while (line.size() > 0 && line.get(line.size() - 1).glyphEntries.isEmpty()) {
+                    line.remove(line.size() - 1);
+                    removed = true;
+                }
+                if (line.size() > 0) {
+                    SameStyleTextRecord lastRecord = line.get(line.size() - 1);
+                    while (lastRecord.glyphEntries.size() > 0
+                            && Character.isWhitespace(lastRecord.glyphEntries.get(lastRecord.glyphEntries.size() - 1).character)) {
+                        lastRecord.glyphEntries.remove(lastRecord.glyphEntries.size() - 1);
+                        removed = true;
+                    }
+                }
+            }
+        }
+
+        textModel.calculateTextWidths();
+
+        List<TEXTRECORD> allTextRecords = new ArrayList<>();
+        int lastHeight = 0;
+        int yOffset = 0;
+        boolean firstLine = true;
+        for (int k = 0; k < lines.size(); k++) {
+            List<SameStyleTextRecord> line = lines.get(k);
+            int width = 0;
+            int currentOffset = 0;
+            if (line.isEmpty()) {
+                currentOffset = lastHeight;
+            } else {
+                for (SameStyleTextRecord tr : line) {
+                    width += tr.width;
+                    int lineHeight = (useOutlines && tr.style.font != null /*Font missing*/) && tr.style.font.hasLayout() ? (int) Math.round(tr.style.fontHeight * tr.style.font.getAscent() / tr.style.font.getDivider() / 1024.0) + tr.style.fontLeading
+                            : tr.style.fontHeight + tr.style.fontLeading;
+                    if (useOutlines && tr.style.font != null && !firstLine && tr.style.font.hasLayout()) {
+                        lineHeight += (int) Math.round(tr.style.fontHeight * tr.style.font.getDescent() / tr.style.font.getDivider() / 1024.0);
+                    }
+                    //TODO: maybe get ascent/descent from system font when not haslayout
+                    lastHeight = lineHeight;
+                    if (lineHeight > currentOffset) {
+                        currentOffset = lineHeight;
+                    }
+                }
+            }
+            firstLine = false;
+            yOffset += currentOffset;
+            int alignOffset = 0;
+
+            int currentIndent = 0;
+            if (!noIndentLineIndices.contains(k)) {
+                currentIndent = indent;
+            }
+
+            switch (align) {
+                case ALIGN_LEFT:
+                    alignOffset = 0;
+                    break;
+                case ALIGN_RIGHT:
+                    alignOffset = bounds.getWidth() - width - leftMargin - currentIndent;
+                    break;
+                case ALIGN_CENTER:
+                    alignOffset = (bounds.getWidth() - width - leftMargin - currentIndent) / 2;
+                    break;
+                case ALIGN_JUSTIFY:
+                    // todo;
+                    break;
+            }
+            for (SameStyleTextRecord tr : line) {
+                tr.xOffset = alignOffset;
+                alignOffset += tr.width;
+            }
+            for (SameStyleTextRecord tr : line) {
+                tr.xOffset += tr.style.leftMargin;
+                tr.xOffset += currentIndent;
+            }
+            for (SameStyleTextRecord tr : line) {
+                AdvancedTextRecord tr2 = new AdvancedTextRecord();
+                int fid = fontId;
+                if (fontClass != null) {
+                    tr2.fontClass = fontClass;
+                }
+                if (tr.style.font != null) {
+                    fid = swf.getCharacterId(tr.style.font);
+                }
+
+                tr2.styleFlagsHasFont = fid != 0;
+                tr2.fontId = fid;
+                tr2.textHeight = tr.style.fontHeight;
+                if (tr.style.textColor != null) {
+                    tr2.styleFlagsHasColor = true;
+                    tr2.textColorA = tr.style.textColor;
+                }
+                // always add xOffset, because no xOffset and 0 xOffset is different in text rendering
+                tr2.styleFlagsHasXOffset = true;
+                tr2.xOffset = tr.xOffset;
+                if (yOffset != 0) {
+                    tr2.styleFlagsHasYOffset = true;
+                    tr2.yOffset = yOffset;
+                }
+                tr2.glyphEntries = new ArrayList<>(tr.glyphEntries.size());
+                for (GlyphCharacter ge : tr.glyphEntries) {
+                    tr2.glyphEntries.add(ge.glyphEntry);
+                }
+                allTextRecords.add(tr2);
+            }
+        }
+        return allTextRecords;
     }
 
     @Override

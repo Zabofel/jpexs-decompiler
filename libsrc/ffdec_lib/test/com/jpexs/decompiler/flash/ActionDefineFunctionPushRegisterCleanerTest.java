@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,17 +22,16 @@ import com.jpexs.decompiler.flash.helpers.CodeFormatting;
 import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoInitActionTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.fail;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.fail;
 
 /**
  *
@@ -55,10 +54,11 @@ public class ActionDefineFunctionPushRegisterCleanerTest extends ActionScript2Te
         assertNotNull(dia);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(dia, dia.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>(),dia, dia.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         String expectedResult = cleanPCode("class " + testClassName + "\r\n"
                 + "{\r\n"
@@ -103,17 +103,18 @@ public class ActionDefineFunctionPushRegisterCleanerTest extends ActionScript2Te
                 + "function testReturns()\r\n"
                 + "{\r\n"
                 + "var _loc2_ = 10;\r\n"
+                + "var _loc1_;\r\n"
                 + "if(_loc2_ > 2)\r\n"
                 + "{\r\n"
                 + "_loc2_ = _loc2_ + 1;\r\n"
-                + "var _loc1_ = 0;\r\n"
+                + "_loc1_ = 0;\r\n"
                 + "while(_loc1_ < 100)\r\n"
                 + "{\r\n"
                 + "if(_loc2_ + _loc1_ == 27)\r\n"
                 + "{\r\n"
                 + "return _loc2_ + 7;\r\n"
                 + "}\r\n"
-                + "_loc1_ = _loc1_ + 27;\r\n"
+                + "_loc1_ += 27;\r\n"
                 + "_loc1_ = _loc1_ + 1;\r\n"
                 + "}\r\n"
                 + "}\r\n"

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,28 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.swf4.ActionAnd;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
-import com.jpexs.decompiler.graph.model.UnboundedTypeItem;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Logical AND.
  *
  * @author JPEXS
  */
 public class AndActionItem extends BinaryOpItem {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public AndActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_LOGICALAND, leftSide, rightSide, "and", "Boolean", "Boolean");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_LOGICALAND, leftSide, rightSide, "and", "Boolean", "Boolean");
     }
 
     @Override
@@ -41,6 +52,12 @@ public class AndActionItem extends BinaryOpItem {
         return getResult(rightSide.getResult(), leftSide.getResult());
     }
 
+    /**
+     * Gets result.
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static Boolean getResult(Object rightResult, Object leftResult) {
         return EcmaScript.toBoolean(leftResult) && EcmaScript.toBoolean(rightResult);
     }
@@ -52,6 +69,13 @@ public class AndActionItem extends BinaryOpItem {
 
     @Override
     public GraphTargetItem returnType() {
-        return new UnboundedTypeItem();
+        return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public List<GraphSourceItem> getOperatorInstruction() {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new ActionAnd());
+        return ret;
     }
 }

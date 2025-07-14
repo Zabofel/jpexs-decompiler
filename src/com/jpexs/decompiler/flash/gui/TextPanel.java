@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -41,12 +41,10 @@ import java.util.logging.Logger;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.text.BadLocationException;
 
 /**
- *
  * @author JPEXS
  */
 public class TextPanel extends JPanel implements TagEditorPanel {
@@ -67,7 +65,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
 
     private final JButton textCancelButton;
 
-    private final JButton selectPrevousTagButton;
+    private final JButton selectPreviousTagButton;
 
     private final JButton selectNextTagButton;
 
@@ -99,7 +97,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
         topPanel.add(textSearchPanel);
         textValue = new LineMarkedEditorPane();
-        add(new JScrollPane(textValue), BorderLayout.CENTER);
+        add(new FasterScrollPane(textValue), BorderLayout.CENTER);
         textValue.setFont(Configuration.getSourceFont());
         textValue.changeContentType("text/swftext");
         textValue.addTextChangedListener(this::textChanged);
@@ -108,7 +106,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         textButtonsPanel.setLayout(new FlowLayout(SwingConstants.WEST));
         textButtonsPanel.setMinimumSize(new Dimension(10, textButtonsPanel.getMinimumSize().height));
 
-        selectPrevousTagButton = createButton(null, "arrowup16", "selectPreviousTag", e -> mainPanel.previousTag());
+        selectPreviousTagButton = createButton(null, "arrowup16", "selectPreviousTag", e -> mainPanel.previousTag());
         selectNextTagButton = createButton(null, "arrowdown16", "selectNextTag", e -> mainPanel.nextTag());
         textAlignLeftButton = createButton(null, "textalignleft16", "text.align.left", e -> textAlign(TextAlign.LEFT));
         textAlignCenterButton = createButton(null, "textaligncenter16", "text.align.center", e -> textAlign(TextAlign.CENTER));
@@ -119,7 +117,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         changeCaseButton = createButton(null, "textuppercase16", "text.toggleCase", e -> changeCase(0));
         undoChangesButton = createButton(null, "reload16", "text.undo", e -> undoChanges());
 
-        textButtonsPanel.add(selectPrevousTagButton);
+        textButtonsPanel.add(selectPreviousTagButton);
         textButtonsPanel.add(selectNextTagButton);
         textButtonsPanel.add(textAlignLeftButton);
         textButtonsPanel.add(textAlignCenterButton);
@@ -139,7 +137,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         textSaveButton = createButton("button.save", "save16", null, e -> saveText(true));
         textCancelButton = createButton("button.cancel", "cancel16", null, e -> cancelText());
 
-        // hide the buttonts to aviod panel resize problems on other views
+        // hide the buttons to avoid panel resize problems on other views
         textEditButton.setVisible(false);
         textSaveButton.setVisible(false);
         textCancelButton.setVisible(false);
@@ -196,6 +194,8 @@ public class TextPanel extends JPanel implements TagEditorPanel {
         increaseTranslateXButton.setVisible(!readOnly);
         changeCaseButton.setVisible(!readOnly);
         undoChangesButton.setVisible(!readOnly);
+        selectPreviousTagButton.setVisible(mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES);
+        selectNextTagButton.setVisible(mainPanel.getCurrentView() == MainPanel.VIEW_RESOURCES);
     }
 
     private boolean isModified() {
@@ -328,11 +328,13 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     private void editText() {
         setEditText(true);
         showTextComparingPreview();
+        mainPanel.setEditingStatus();
     }
 
     private void cancelText() {
         setEditText(false);
         mainPanel.reload(true);
+        mainPanel.clearEditingStatus();
     }
 
     private void saveText(boolean refresh) {
@@ -343,6 +345,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
             if (refresh) {
                 mainPanel.repaintTree();
             }
+            mainPanel.clearEditingStatus();
         }
     }
 
@@ -398,6 +401,7 @@ public class TextPanel extends JPanel implements TagEditorPanel {
                     mainPanel.showTextTagWithNewValue(textTag, copyTextTag);
                 }
             } catch (TextParseException | InterruptedException | IOException ex) {
+                //ignored
             }
 
             if (!ok) {
@@ -423,5 +427,12 @@ public class TextPanel extends JPanel implements TagEditorPanel {
     @Override
     public boolean isEditing() {
         return textSaveButton.isVisible() && textSaveButton.isEnabled();
+    }
+
+    public void startEdit() {
+        if (!textEditButton.isVisible()) {
+            return;
+        }
+        editText();
     }
 }

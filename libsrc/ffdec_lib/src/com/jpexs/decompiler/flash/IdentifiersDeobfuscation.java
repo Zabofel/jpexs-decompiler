@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.RenameType;
+import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.tags.DefineSpriteTag;
 import com.jpexs.decompiler.flash.tags.Tag;
@@ -33,60 +34,121 @@ import java.util.Random;
 import java.util.regex.Pattern;
 
 /**
+ * Identifiers deobfuscation.
  *
  * @author JPEXS
  */
 public class IdentifiersDeobfuscation {
 
+    /**
+     * Random number generator.
+     */
     private static final Random rnd = new Random();
 
+    /**
+     * Default size of random string.
+     */
     private final int DEFAULT_FOO_SIZE = 10;
 
+    /**
+     * All variable names.
+     */
     public HashSet<String> allVariableNamesStr = new HashSet<>();
 
+    /**
+     * Type counts.
+     */
     private final HashMap<String, Integer> typeCounts = new HashMap<>();
 
-    private static final Cache<String, String> as2NameCache = Cache.getInstance(false, true, "as2_ident");
+    /**
+     * AS2 name cache.
+     */
+    private static final Cache<String, String> as2NameCache = Cache.getInstance(false, true, "as2_ident", true);
 
-    private static final Cache<String, String> as3NameCache = Cache.getInstance(false, true, "as3_ident");
+    /**
+     * AS3 name cache.
+     */
+    private static final Cache<String, String> as3NameCache = Cache.getInstance(false, true, "as3_ident", true);
 
+    /**
+     * Valid first characters.
+     */
     public static final String VALID_FIRST_CHARACTERS = "\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}_$";
 
+    /**
+     * Valid next characters.
+     */
     public static final String VALID_NEXT_CHARACTERS = VALID_FIRST_CHARACTERS + "\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}";
 
+    /**
+     * Valid name pattern.
+     */
     private static final Pattern VALID_NAME_PATTERN = Pattern.compile("^[a-zA-Z_\\$][a-zA-Z0-9_\\$]*$");
 
+    /**
+     * Identifier pattern.
+     */
     private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("^[" + VALID_FIRST_CHARACTERS + "][" + VALID_NEXT_CHARACTERS + "]*$");
 
+    /**
+     * Valid name pattern with dot.
+     */
     private static final Pattern VALID_NAME_PATTERN_DOT = Pattern.compile("^[a-zA-Z_\\$][a-zA-Z0-9_.\\$]*$");
 
+    /**
+     * Identifier pattern with dot.
+     */
     private static final Pattern IDENTIFIER_PATTERN_DOT = Pattern.compile("^[" + VALID_FIRST_CHARACTERS + "][" + VALID_NEXT_CHARACTERS + ".]*$");
 
+    /**
+     * Random name generator characters.
+     */
     public static final String FOO_CHARACTERS = "bcdfghjklmnpqrstvwz";
 
+    /**
+     * Random name generator join characters.
+     */
     public static final String FOO_JOIN_CHARACTERS = "aeiouy";
 
-    // http://help.adobe.com/en_US/AS2LCR/Flash_10.0/help.html?content=00000477.html
+    /**
+     * Reserved words in AS2.
+     * http://help.adobe.com/en_US/AS2LCR/Flash_10.0/help.html?content=00000477.html
+     */
     public static final String[] reservedWordsAS2 = {
         // is "add" really a keyword? documentation says yes, but I can create "add" variable in CS6...
         // "add",
-        "and", "break", "case", "catch", "class", "continue", "default", "delete", "do", "dynamic", "else",
-        "eq", "extends", "false", "finally", "for", "function", "ge", "get", "gt", "if", "ifFrameLoaded", "implements",
+        "and", "break", "case", "catch", "class", "continue", "default", "delete", "do", "dynamic",
+        "each", //can be in variable definition
+        "else",
+        "eq", "extends",
+        "false", //can be in variable definition
+        "finally", "for", "function", "ge",
+        "get", //can be in variable definition
+        "gt", "if", "ifFrameLoaded", "implements",
         "import", "in", "instanceof", "interface", "intrinsic", "le",
         // is "it" really a keyword? documentation says yes, but I can create "it" variable in CS6...
         // "it",
-        "ne", "new", "not", "null", "on", "onClipEvent",
-        "or", "private", "public", "return", "set", "static",
+        "ne", "new", "not",
+        "null", //can be in variable definition
+        "on", "onClipEvent",
+        "or", "private", "public", "return",
+        "set", //can be in variable definition
+        "static",
         //allow as variable:
         //"super",
         "switch", "tellTarget",
         //allow as variable:
         //"this",
-        "throw", "try",
+        "throw",
+        "true", //can be in variable definition
+        "try",
         "typeof", "undefined", "var", "void", "while", "with"
     };
 
-    // http://www.adobe.com/devnet/actionscript/learning/as3-fundamentals/syntax.html
+    /**
+     * Reserved words in AS3.
+     * http://www.adobe.com/devnet/actionscript/learning/as3-fundamentals/syntax.html
+     */
     public static final String[] reservedWordsAS3 = {
         "as", "break", "case", "catch", "class", "const", "continue", "default", "delete", "do", "else",
         "extends", "false", "finally", "for", "function", "if", "implements", "import", "in", "instanceof",
@@ -98,7 +160,9 @@ public class IdentifiersDeobfuscation {
         "void", "while", "with"
     };
 
-    // TODO, why do we have 2 different list? Moved from AVM2Deobfuscation
+    /**
+     * TODO, why do we have 2 different list? Moved from AVM2Deobfuscation
+     */
     public static final String[] reservedWordsAS3_2 = {
         "as", "break", "case", "catch", "class", "const", "continue", "default", "delete", "do", "each", "else",
         "extends", "false", "finally", "for", "function", "get", "if", "implements", "import", "in", "instanceof",
@@ -106,9 +170,18 @@ public class IdentifiersDeobfuscation {
         "return", "set", "super", "switch", "this", "throw", "true", "try", "typeof", "use", "var", /*"void",*/ "while",
         "with", "dynamic", "default", "final", "in", "static"};
 
-    //syntactic keywords - can be used as identifiers, but that have special meaning in certain contexts
+    /**
+     * Syntactic keywords - can be used as identifiers, but that have special
+     * meaning in certain contexts
+     */
     public static final String[] syntacticKeywordsAS3 = {"each", "get", "set", "namespace", "include", "dynamic", "final", "native", "override", "static"};
 
+    /**
+     * Checks if string is reserved word.
+     *
+     * @param s String
+     * @param as3 Is ActionScript3
+     */
     public static boolean isReservedWord(String s, boolean as3) {
         if (s == null) {
             return false;
@@ -123,7 +196,12 @@ public class IdentifiersDeobfuscation {
         return false;
     }
 
-    // TODO: Why do we need this method???
+    /**
+     * TODO: Why do we need this method???
+     *
+     * @param s String
+     * @return True if string is reserved word
+     */
     public static boolean isReservedWord2(String s) {
         if (s == null) {
             return false;
@@ -138,6 +216,13 @@ public class IdentifiersDeobfuscation {
         return false;
     }
 
+    /**
+     * Generates random string.
+     *
+     * @param firstUppercase First character uppercase
+     * @param rndSize Random size
+     * @return Random string
+     */
     public static String fooString(boolean firstUppercase, int rndSize) {
         int len = 3 + rnd.nextInt(rndSize - 3);
         StringBuilder sb = new StringBuilder(len);
@@ -157,6 +242,15 @@ public class IdentifiersDeobfuscation {
         return sb.toString();
     }
 
+    /**
+     * Deobfuscates instance names.
+     *
+     * @param as3 Is ActionScript3
+     * @param namesMap Names map
+     * @param renameType Rename type
+     * @param tags Tags
+     * @param selected Preselected names
+     */
     public void deobfuscateInstanceNames(boolean as3, HashMap<DottedChain, DottedChain> namesMap, RenameType renameType, Iterable<Tag> tags, Map<DottedChain, DottedChain> selected) {
         for (Tag t : tags) {
             if (t instanceof DefineSpriteTag) {
@@ -184,6 +278,16 @@ public class IdentifiersDeobfuscation {
         }
     }
 
+    /**
+     * Deobfuscates package names.
+     *
+     * @param as3 Is ActionScript3
+     * @param pkg Package
+     * @param namesMap Names map
+     * @param renameType Rename type
+     * @param selected Preselected names
+     * @return Deobfuscated package
+     */
     public DottedChain deobfuscatePackage(boolean as3, DottedChain pkg, HashMap<DottedChain, DottedChain> namesMap, RenameType renameType, Map<DottedChain, DottedChain> selected) {
         if (namesMap.containsKey(pkg)) {
             return namesMap.get(pkg);
@@ -208,8 +312,18 @@ public class IdentifiersDeobfuscation {
         return null;
     }
 
+    /**
+     * Deobfuscates name with package.
+     *
+     * @param as3 Is ActionScript3
+     * @param n Name
+     * @param namesMap Names map
+     * @param renameType Rename type
+     * @param selected Preselected names
+     * @return Deobfuscated name
+     */
     public String deobfuscateNameWithPackage(boolean as3, String n, HashMap<DottedChain, DottedChain> namesMap, RenameType renameType, Map<DottedChain, DottedChain> selected) {
-        DottedChain nChain = DottedChain.parseWithSuffix(n);
+        DottedChain nChain = DottedChain.parseNoSuffix(n);
         DottedChain pkg = nChain.getWithoutLast();
         String name = nChain.getLast();
 
@@ -238,6 +352,13 @@ public class IdentifiersDeobfuscation {
         return null;
     }
 
+    /**
+     * Checks if string is valid slash path.
+     *
+     * @param s String
+     * @param exceptions Exceptions
+     * @return True if string is valid slash path
+     */
     private static boolean isValidSlashPath(String s, String... exceptions) {
         String[] slashParts = s.split("\\/");
         if (s.isEmpty()) {
@@ -261,9 +382,16 @@ public class IdentifiersDeobfuscation {
         return true;
     }
 
+    /**
+     * Checks if string is valid name with slash.
+     *
+     * @param s String
+     * @param exceptions Exceptions
+     * @return True if string is valid name with slash
+     */
     public static boolean isValidNameWithSlash(String s, String... exceptions) {
         if (s.contains(":")) {
-            String pathVar[] = s.split(":");
+            String[] pathVar = s.split(":");
             if (!isValidSlashPath(pathVar[0], exceptions)) {
                 return false;
             }
@@ -278,6 +406,14 @@ public class IdentifiersDeobfuscation {
         }
     }
 
+    /**
+     * Checks if string is valid name with dot.
+     *
+     * @param as3 Is ActionScript3
+     * @param s String
+     * @param exceptions Exceptions
+     * @return True if string is valid name with dot
+     */
     public static boolean isValidNameWithDot(boolean as3, String s, String... exceptions) {
         for (String e : exceptions) {
             if (e.equals(s)) {
@@ -300,6 +436,14 @@ public class IdentifiersDeobfuscation {
         return false;
     }
 
+    /**
+     * Checks if string is valid name.
+     *
+     * @param as3 Is ActionScript3
+     * @param s String
+     * @param exceptions Exceptions
+     * @return True if string is valid name
+     */
     public static boolean isValidName(boolean as3, String s, String... exceptions) {
         for (String e : exceptions) {
             if (e.equals(s)) {
@@ -322,12 +466,24 @@ public class IdentifiersDeobfuscation {
         return false;
     }
 
+    /**
+     * Deobfuscates name.
+     *
+     * @param as3 Is ActionScript3
+     * @param s String
+     * @param firstUppercase First character uppercase
+     * @param usageType Usage type
+     * @param namesMap Names map
+     * @param renameType Rename type
+     * @param selected Preselected names
+     * @return Deobfuscated name
+     */
     public String deobfuscateName(boolean as3, String s, boolean firstUppercase, String usageType, HashMap<DottedChain, DottedChain> namesMap, RenameType renameType, Map<DottedChain, DottedChain> selected) {
         if (usageType == null) {
             usageType = "name";
         }
 
-        DottedChain sChain = DottedChain.parseWithSuffix(s);
+        DottedChain sChain = DottedChain.parseNoSuffix(s);
         if (selected != null) {
             if (selected.containsKey(sChain)) {
                 return selected.get(sChain).toRawString();
@@ -353,20 +509,27 @@ public class IdentifiersDeobfuscation {
                         ret = fooString(firstUppercase, rndSize);
                         if (allVariableNamesStr.contains(ret)
                                 || isReservedWord(ret, as3)
-                                || namesMap.containsValue(DottedChain.parseWithSuffix(ret))) {
+                                || namesMap.containsValue(DottedChain.parseNoSuffix(ret))) {
                             found = true;
                             rndSize++;
                         }
                     }
                 } while (found);
 
-                namesMap.put(DottedChain.parseWithSuffix(s), DottedChain.parseWithSuffix(ret));
+                namesMap.put(DottedChain.parseNoSuffix(s), DottedChain.parseNoSuffix(ret));
                 return ret;
             }
         }
         return null;
     }
 
+    /**
+     * Appends obfuscated identifier.
+     *
+     * @param s String
+     * @param writer Writer
+     * @return Writer
+     */
     public static GraphTextWriter appendObfuscatedIdentifier(String s, GraphTextWriter writer) {
         writer.append("\u00A7");
         escapeOIdentifier(s, writer);
@@ -374,13 +537,13 @@ public class IdentifiersDeobfuscation {
     }
 
     /**
-     * Ensures identifier is valid and if not, uses paragraph syntax
+     * Ensures identifier is valid and if not, uses paragraph syntax.
      *
      * @param as3 Is ActionScript3
      * @param s Identifier
      * @param validExceptions Exceptions which are valid (e.g. some reserved
      * words)
-     * @return
+     * @return Printable identifier
      */
     public static String printIdentifier(boolean as3, String s, String... validExceptions) {
         if (s == null || s.isEmpty()) {
@@ -413,6 +576,13 @@ public class IdentifiersDeobfuscation {
         return ret;
     }
 
+    /**
+     * Escapes obfuscated identifier.
+     *
+     * @param s String
+     * @param writer Writer
+     * @return Writer
+     */
     public static GraphTextWriter escapeOIdentifier(String s, GraphTextWriter writer) {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
@@ -420,8 +590,6 @@ public class IdentifiersDeobfuscation {
                 writer.append("\\n");
             } else if (c == '\r') {
                 writer.append("\\r");
-            } else if (c == '\t') {
-                writer.append("\\t");
             } else if (c == '\b') {
                 writer.append("\\b");
             } else if (c == '\t') {
@@ -435,6 +603,18 @@ public class IdentifiersDeobfuscation {
             } else if (c < 32) {
                 writer.append("\\x").append(Helper.byteToHex((byte) c));
             } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    writer.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
                 writer.append(c);
             }
         }
@@ -442,6 +622,12 @@ public class IdentifiersDeobfuscation {
         return writer;
     }
 
+    /**
+     * Escapes obfuscated identifier.
+     *
+     * @param s String
+     * @return Escaped string
+     */
     public static String escapeOIdentifier(String s) {
         StringBuilder ret = new StringBuilder(s.length());
         for (int i = 0; i < s.length(); i++) {
@@ -454,8 +640,6 @@ public class IdentifiersDeobfuscation {
                 ret.append("\\t");
             } else if (c == '\b') {
                 ret.append("\\b");
-            } else if (c == '\t') {
-                ret.append("\\t");
             } else if (c == '\f') {
                 ret.append("\\f");
             } else if (c == '\\') {
@@ -465,6 +649,18 @@ public class IdentifiersDeobfuscation {
             } else if (c < 32) {
                 ret.append("\\x").append(Helper.byteToHex((byte) c));
             } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    ret.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
                 ret.append(c);
             }
         }
@@ -472,6 +668,9 @@ public class IdentifiersDeobfuscation {
         return ret.toString();
     }
 
+    /**
+     * Clears cache.
+     */
     public static void clearCache() {
         as2NameCache.clear();
         as3NameCache.clear();

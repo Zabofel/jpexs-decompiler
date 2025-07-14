@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.shape;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -40,10 +41,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Shape exporter base.
  *
  * @author JPEXS, Claus Wahlers
  */
 public abstract class ShapeExporterBase implements IShapeExporter {
+
+    private static final boolean USE_REVERSE_LOOKUP = true;
 
     protected final SHAPE shape;
 
@@ -57,9 +61,26 @@ public abstract class ShapeExporterBase implements IShapeExporter {
 
     private final ColorTransform colorTransform;
 
-    public ShapeExporterBase(SWF swf, SHAPE shape, ColorTransform colorTransform) {
+    private boolean canUseSmoothing = true;
+
+    /**
+     * Winding rule
+     */
+    protected int windingRule;
+
+    /**
+     * Constructor.
+     *
+     * @param windingRule Winding rule
+     * @param shapeNum Shape number
+     * @param swf SWF
+     * @param shape Shape
+     * @param colorTransform Color transform
+     */
+    public ShapeExporterBase(int windingRule, int shapeNum, SWF swf, SHAPE shape, ColorTransform colorTransform) {
         this.shape = shape;
         this.colorTransform = colorTransform;
+        this.windingRule = windingRule;
 
         Cache<SHAPE, ShapeExportData> cache = swf.getShapeExportDataCache();
         ShapeExportData cachedData = cache.get(shape);
@@ -72,15 +93,25 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                     fillStyles.add(new FillStyle(fillStyle));
                 }
 
-                for (LINESTYLE lineStyle : shapeWithStyle.lineStyles.lineStyles) {
-                    lineStyles.add(new LineStyle(lineStyle));
+                if (shapeNum <= 3) {
+                    for (LINESTYLE lineStyle : shapeWithStyle.lineStyles.lineStyles) {
+                        lineStyles.add(new LineStyle(lineStyle));
+                    }
+                } else {
+                    for (LINESTYLE2 lineStyle : shapeWithStyle.lineStyles.lineStyles2) {
+                        lineStyles.add(new LineStyle(lineStyle));
+                    }
                 }
             }
 
             // Create edge maps
             List<Map<Integer, List<IEdge>>> fillEdgeMaps = new ArrayList<>();
             List<Map<Integer, List<IEdge>>> lineEdgeMaps = new ArrayList<>();
-            createEdgeMaps(shape, fillStyles, lineStyles, fillEdgeMaps, lineEdgeMaps);
+            try {
+                createEdgeMaps(shapeNum, shape, fillStyles, lineStyles, fillEdgeMaps, lineEdgeMaps);
+            } catch (Throwable t) {
+                t.printStackTrace();
+            }
             int count = lineEdgeMaps.size();
             List<List<IEdge>> fillPaths = new ArrayList<>(count);
             List<List<IEdge>> linePaths = new ArrayList<>(count);
@@ -88,7 +119,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                 fillPaths.add(createPathFromEdgeMap(fillEdgeMaps.get(i)));
                 linePaths.add(createPathFromEdgeMap(lineEdgeMaps.get(i)));
             }
-
+            
             cachedData = new ShapeExportData();
             cachedData.fillPaths = fillPaths;
             cachedData.linePaths = linePaths;
@@ -103,6 +134,17 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         _linePaths = cachedData.linePaths;
     }
 
+    /**
+     * Sets if smoothing can be used.
+     * @param canUseSmoothing If smoothing can be used
+     */
+    public void setCanUseSmoothing(boolean canUseSmoothing) {
+        this.canUseSmoothing = canUseSmoothing;
+    }
+
+    /**
+     * Exports shape.
+     */
     public void export() {
         // Let the doc handler know that a shape export starts
         beginShape();
@@ -117,7 +159,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         endShape();
     }
 
-    private void createEdgeMaps(SHAPE shape, List<FillStyle> fillStyles, List<LineStyle> lineStyles,
+    private void createEdgeMaps(int shapeNum, SHAPE shape, List<FillStyle> fillStyles, List<LineStyle> lineStyles,
             List<Map<Integer, List<IEdge>>> fillEdgeMaps, List<Map<Integer, List<IEdge>>> lineEdgeMaps) {
         int xPos = 0;
         int yPos = 0;
@@ -142,7 +184,11 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                     fillStyleIdxOffset = fillStyles.size();
                     lineStyleIdxOffset = lineStyles.size();
                     appendFillStyles(fillStyles, styleChangeRecord.fillStyles.fillStyles);
-                    appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles);
+                    if (shapeNum <= 3) {
+                        appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles);
+                    } else {
+                        appendLineStyles(lineStyles, styleChangeRecord.lineStyles.lineStyles2);
+                    }
                 }
                 // Check if all styles are reset to 0.
                 // This (probably) means that a new group starts with the next record
@@ -219,14 +265,16 @@ public abstract class ShapeExporterBase implements IShapeExporter {
             Map<Integer, List<IEdge>> currentFillEdgeMap, Map<Integer, List<IEdge>> currentLineEdgeMap) {
         List<IEdge> path;
         if (fillStyleIdx0 != 0) {
-            path = currentFillEdgeMap.get(fillStyleIdx0);
+            path = currentFillEdgeMap.get(fillStyleIdx0);            
             if (path == null) {
                 path = new ArrayList<>();
                 currentFillEdgeMap.put(fillStyleIdx0, path);
             }
             for (int j = subPath.size() - 1; j >= 0; j--) {
-                path.add(subPath.get(j).reverseWithNewFillStyle(fillStyleIdx0));
+                IEdge rev = subPath.get(j).reverseWithNewFillStyle(fillStyleIdx0);
+                path.add(rev);
             }
+
         }
         if (fillStyleIdx1 != 0) {
             path = currentFillEdgeMap.get(fillStyleIdx1);
@@ -234,7 +282,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                 path = new ArrayList<>();
                 currentFillEdgeMap.put(fillStyleIdx1, path);
             }
-            appendEdges(path, subPath);
+            appendEdges(path, subPath);            
         }
         if (lineStyleIdx != 0) {
             path = currentLineEdgeMap.get(lineStyleIdx);
@@ -250,7 +298,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         int posX = Integer.MAX_VALUE;
         int posY = Integer.MAX_VALUE;
         int fillStyleIdx = Integer.MAX_VALUE;
-        if (path.size() > 0) {
+        if (!path.isEmpty()) {
             beginFills();
             for (int i = 0; i < path.size(); i++) {
                 IEdge e = path.get(i);
@@ -290,7 +338,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                                         fillStyle.bitmapId,
                                         fillStyle.bitmapMatrix,
                                         (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP),
-                                        (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.CLIPPED_BITMAP),
+                                        canUseSmoothing && (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.CLIPPED_BITMAP),
                                         colorTransform
                                 );
                                 break;
@@ -323,8 +371,10 @@ public abstract class ShapeExporterBase implements IShapeExporter {
     private void exportLinePath(List<IEdge> path) {
         int posX = Integer.MAX_VALUE;
         int posY = Integer.MAX_VALUE;
+        int lastMoveToX = posX;
+        int lastMoveToY = posY;
         int lineStyleIdx = Integer.MAX_VALUE;
-        if (path.size() > 0) {
+        if (!path.isEmpty()) {
             boolean autoClose = true;
             beginLines();
             for (int i = 0; i < path.size(); i++) {
@@ -337,6 +387,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                     try {
                         lineStyle = _lineStyles.get(lineStyleIdx - 1);
                     } catch (Exception ex) {
+                        //ignored
                     }
                     if (lineStyle != null) {
                         String scaleMode = "NORMAL";
@@ -365,15 +416,21 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                             miterLimitFactor = lineStyle.miterLimitFactor;
                             hasFillFlag = lineStyle.hasFillFlag;
                         }
+                        RGB lineColor = lineStyle.color;
+                        if (hasFillFlag && lineStyle.fillType.fillStyleType == FILLSTYLE.SOLID) {
+                            lineColor = lineStyle.fillType.color;
+                        }
                         lineStyle(
                                 lineStyle.width,
-                                colorTransform == null ? lineStyle.color : colorTransform.apply(lineStyle.color),
+                                colorTransform == null ? lineColor : colorTransform.apply(lineColor),
                                 pixelHintingFlag,
                                 scaleMode,
                                 startCapStyle,
                                 endCapStyle,
                                 joinStyle,
-                                miterLimitFactor);
+                                miterLimitFactor,
+                                !autoClose
+                        );
 
                         if (hasFillFlag) {
                             FillStyle fillStyle = lineStyle.fillType;
@@ -391,15 +448,27 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                                             (fillStyle.gradient instanceof FOCALGRADIENT) ? ((FOCALGRADIENT) fillStyle.gradient).focalPoint : 0
                                     );
                                     break;
+                                case FILLSTYLE.CLIPPED_BITMAP:
+                                case FILLSTYLE.REPEATING_BITMAP:
+                                case FILLSTYLE.NON_SMOOTHED_CLIPPED_BITMAP:
+                                case FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP:
+                                    lineBitmapStyle(fillStyle.bitmapId,
+                                            fillStyle.bitmapMatrix,
+                                            (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.NON_SMOOTHED_REPEATING_BITMAP),
+                                            (fillStyle.fillStyleType == FILLSTYLE.REPEATING_BITMAP || fillStyle.fillStyleType == FILLSTYLE.CLIPPED_BITMAP),
+                                            colorTransform);
+                                    break;
                             }
                         }
                     } else {
                         // We should never get here
-                        lineStyle(1, new RGB(Color.black), false, "NORMAL", 0, 0, 0, 3);
+                        lineStyle(1, new RGB(Color.black), false, "NORMAL", 0, 0, 0, 3, false);
                     }
                 }
                 if (posX != e.getFromX() || posY != e.getFromY()) {
                     moveTo(e.getFromX(), e.getFromY());
+                    lastMoveToX = e.getFromX();
+                    lastMoveToY = e.getFromY();
                 }
                 if (e instanceof CurvedEdge) {
                     CurvedEdge c = (CurvedEdge) e;
@@ -410,8 +479,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                 posX = e.getToX();
                 posY = e.getToY();
             }
-            IEdge firstEdge = path.get(0);
-            endLines(autoClose && firstEdge.getFromX() == posX && firstEdge.getFromY() == posY);
+            endLines(autoClose && lastMoveToX == posX && lastMoveToY == posY);
         }
     }
 
@@ -431,12 +499,13 @@ public abstract class ShapeExporterBase implements IShapeExporter {
     private void cleanEdgeMap(Map<Integer, List<IEdge>> edgeMap) {
         for (Integer styleIdx : edgeMap.keySet()) {
             List<IEdge> subPath = edgeMap.get(styleIdx);
-            if (subPath != null && subPath.size() > 0) {
+            if (subPath != null && !subPath.isEmpty()) {
                 int idx;
                 IEdge prevEdge = null;
                 List<IEdge> tmpPath = new ArrayList<>();
                 Map<Long, List<IEdge>> coordMap = createCoordMap(subPath);
-                while (subPath.size() > 0) {
+                Map<Long, List<IEdge>> reverseCoordMap = createReverseCoordMap(subPath);
+                while (!subPath.isEmpty()) {
                     idx = 0;
                     while (idx < subPath.size()) {
                         if (prevEdge != null) {
@@ -446,8 +515,23 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                                 if (edge != null) {
                                     idx = subPath.indexOf(edge);
                                 } else {
-                                    idx = 0;
-                                    prevEdge = null;
+                                    IEdge revEdge = findNextEdgeInCoordMap(reverseCoordMap, prevEdge);
+
+                                    if (revEdge != null) {
+                                        if (USE_REVERSE_LOOKUP) {
+                                            idx = subPath.indexOf(revEdge);
+                                            IEdge r = revEdge.reverseWithNewFillStyle(revEdge.getFillStyleIdx());
+                                            updateEdgeInCoordMap(coordMap, revEdge, r);
+                                            updateEdgeInReverseCoordMap(reverseCoordMap, revEdge, r);
+                                            subPath.set(idx, r);
+                                        } else {
+                                            idx = 0;
+                                            prevEdge = null;
+                                        }
+                                    } else {
+                                        idx = 0;
+                                        prevEdge = null;
+                                    }
                                 }
                                 continue;
                             }
@@ -456,6 +540,7 @@ public abstract class ShapeExporterBase implements IShapeExporter {
                         IEdge edge = subPath.remove(idx);
                         tmpPath.add(edge);
                         removeEdgeFromCoordMap(coordMap, edge);
+                        removeEdgeFromReverseCoordMap(reverseCoordMap, edge);
                         prevEdge = edge;
                     }
                 }
@@ -481,6 +566,23 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         return coordMap;
     }
 
+    private Map<Long, List<IEdge>> createReverseCoordMap(List<IEdge> path) {
+        Map<Long, List<IEdge>> coordMap = new HashMap<>();
+        for (int i = 0; i < path.size(); i++) {
+            IEdge edge = path.get(i);
+            long toLong = (((long) edge.getToX()) << 32) | (edge.getToY() & 0xffffffffL);
+            List<IEdge> coordMapArray = coordMap.get(toLong);
+            if (coordMapArray == null) {
+                List<IEdge> list = new ArrayList<>();
+                list.add(path.get(i));
+                coordMap.put(toLong, list);
+            } else {
+                coordMapArray.add(path.get(i));
+            }
+        }
+        return coordMap;
+    }
+
     private void removeEdgeFromCoordMap(Map<Long, List<IEdge>> coordMap, IEdge edge) {
         long fromLong = (((long) edge.getFromX()) << 32) | (edge.getFromY() & 0xffffffffL);
         List<IEdge> coordMapArray = coordMap.get(fromLong);
@@ -496,12 +598,55 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         }
     }
 
+    private void removeEdgeFromReverseCoordMap(Map<Long, List<IEdge>> coordMap, IEdge edge) {
+        long toLong = (((long) edge.getToX()) << 32) | (edge.getToY() & 0xffffffffL);
+        List<IEdge> coordMapArray = coordMap.get(toLong);
+        if (coordMapArray != null) {
+            if (coordMapArray.size() == 1) {
+                coordMap.remove(toLong);
+            } else {
+                int i = coordMapArray.indexOf(edge);
+                if (i > -1) {
+                    coordMapArray.remove(i);
+                }
+            }
+        }
+    }
+
     private IEdge findNextEdgeInCoordMap(Map<Long, List<IEdge>> coordMap, IEdge edge) {
         long toLong = (((long) edge.getToX()) << 32) | (edge.getToY() & 0xffffffffL);
         List<IEdge> coordMapArray = coordMap.get(toLong);
-        if (coordMapArray != null && coordMapArray.size() > 0) {
+        if (coordMapArray != null && !coordMapArray.isEmpty()) {
             return coordMapArray.get(0);
         }
+        return null;
+    }
+
+    private IEdge updateEdgeInCoordMap(Map<Long, List<IEdge>> coordMap, IEdge edge, IEdge newEdge) {
+        long fromLong = (((long) edge.getFromX()) << 32) | (edge.getFromY() & 0xffffffffL);
+
+        coordMap.get(fromLong).remove(edge);
+
+        long fromLong2 = (((long) newEdge.getFromX()) << 32) | (newEdge.getFromY() & 0xffffffffL);
+
+        if (!coordMap.containsKey(fromLong2)) {
+            coordMap.put(fromLong2, new ArrayList<>());
+        }
+        coordMap.get(fromLong2).add(newEdge);
+        return null;
+    }
+
+    private IEdge updateEdgeInReverseCoordMap(Map<Long, List<IEdge>> coordMap, IEdge edge, IEdge newEdge) {
+        long toLong = (((long) edge.getToX()) << 32) | (edge.getToY() & 0xffffffffL);
+
+        coordMap.get(toLong).remove(edge);
+
+        long toLong2 = (((long) newEdge.getToX()) << 32) | (newEdge.getToY() & 0xffffffffL);
+
+        if (!coordMap.containsKey(toLong2)) {
+            coordMap.put(toLong2, new ArrayList<>());
+        }
+        coordMap.get(toLong2).add(newEdge);
         return null;
     }
 
@@ -517,8 +662,15 @@ public abstract class ShapeExporterBase implements IShapeExporter {
         }
     }
 
+    private void appendLineStyles(List<LineStyle> v1, LINESTYLE2[] v2) {
+        for (LINESTYLE2 s : v2) {
+            v1.add(new LineStyle(s));
+        }
+    }
+
     private void appendEdges(List<IEdge> v1, List<IEdge> v2) {
         for (int i = 0; i < v2.size(); i++) {
+            //System.err.println("appending " + v2.get(i));
             v1.add(v2.get(i));
         }
     }

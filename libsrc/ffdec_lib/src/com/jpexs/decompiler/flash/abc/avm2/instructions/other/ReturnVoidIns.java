@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
@@ -27,11 +28,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * returnvoid instruction - return from function with no return value.
  *
  * @author JPEXS
  */
 public class ReturnVoidIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ReturnVoidIns() {
         super(0x47, "returnvoid", new int[]{}, false);
     }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,21 +17,31 @@
 package com.jpexs.decompiler.flash.action.special;
 
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import com.jpexs.helpers.Helper;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * Unknown action.
  *
  * @author JPEXS
  */
 public class ActionUnknown extends ActionNop {
 
-    public ActionUnknown(int actionCode, int actionLength) {
-        super(actionCode);
+    /**
+     * Constructor.
+     * @param actionCode Action code
+     * @param actionLength Action length
+     * @param charset Charset
+     */
+    public ActionUnknown(int actionCode, int actionLength, String charset) {
+        super(actionCode, charset);
         this.actionLength = actionLength;
     }
 
@@ -46,6 +56,6 @@ public class ActionUnknown extends ActionNop {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartItem, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartItem, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
     }
 }

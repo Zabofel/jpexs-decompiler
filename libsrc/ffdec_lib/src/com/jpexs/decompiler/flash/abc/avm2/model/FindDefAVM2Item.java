@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.abc.types.Multiname;
@@ -21,15 +22,27 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import java.util.Objects;
 
 /**
+ * Find definition.
  *
  * @author JPEXS
  */
 public class FindDefAVM2Item extends AVM2Item {
 
+    /**
+     * Property name
+     */
     public Multiname propertyName;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param propertyName Property name
+     */
     public FindDefAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Multiname propertyName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.propertyName = propertyName;
@@ -49,4 +62,30 @@ public class FindDefAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 83 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final FindDefAVM2Item other = (FindDefAVM2Item) obj;
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
 }

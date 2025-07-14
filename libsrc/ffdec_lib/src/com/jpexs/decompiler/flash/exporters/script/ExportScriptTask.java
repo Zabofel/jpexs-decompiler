@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,6 +37,7 @@ import java.util.concurrent.Callable;
 import java.util.logging.Logger;
 
 /**
+ * Export script task.
  *
  * @author JPEXS
  */
@@ -63,7 +64,20 @@ public class ExportScriptTask implements Callable<File> {
     long stopTime;
 
     EventListener eventListener;
+    
+    Thread thread;
 
+    /**
+     * Constructor.
+     * @param handler AbortRetryIgnoreHandler
+     * @param index Index
+     * @param count Count
+     * @param name Name
+     * @param asm ASMSource
+     * @param directory Directory
+     * @param exportSettings Export settings
+     * @param evl Event listener
+     */
     public ExportScriptTask(AbortRetryIgnoreHandler handler, int index, int count, String name, ASMSource asm, String directory, ScriptExportSettings exportSettings, EventListener evl) {
         this.asm = asm;
         this.directory = directory;
@@ -74,9 +88,10 @@ public class ExportScriptTask implements Callable<File> {
         this.handler = handler;
         this.eventListener = evl;
     }
-
+           
     @Override
     public File call() throws IOException, InterruptedException {
+        thread = Thread.currentThread();
         String f = Path.combine(directory, name) + exportSettings.getFileExtension();
         RunnableIOExResult<File> rio = new RunnableIOExResult<File>() {
             @Override
@@ -101,10 +116,10 @@ public class ExportScriptTask implements Callable<File> {
                         asm.getActionSourceSuffix(writer2);
                     } else if (exportMode == ScriptExportMode.PCODE_GRAPHVIZ) {
                         new PcodeGraphVizExporter().exportAs12(asm, writer2);
-                    } else if (exportMode != ScriptExportMode.AS) {
-                        asm.getActionSourcePrefix(writer2);
-                        asm.getASMSource(exportMode, writer2, null);
-                        asm.getActionSourceSuffix(writer2);
+                    } else if (exportMode != ScriptExportMode.AS) {                        
+                        //asm.getActionSourcePrefix(writer2);
+                        asm.getASMSource(exportMode, writer2, null);                        
+                        //asm.getActionSourceSuffix(writer2);
                     } else {
                         ActionList as;
                         try (Statistics s = new Statistics("ASMSource.getActions")) {
@@ -114,8 +129,8 @@ public class ExportScriptTask implements Callable<File> {
                         Action.setActionsAddresses(as, 0);
 
                         try (Statistics s = new Statistics("Action.actionsToSource")) {
-                            asm.getActionScriptSource(writer2, as);
-                        }
+                            asm.getActionScriptSource(writer2, as);                            
+                        }                        
                     }
                 }
 

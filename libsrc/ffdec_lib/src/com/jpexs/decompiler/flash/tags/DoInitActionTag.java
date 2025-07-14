@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
+import com.jpexs.decompiler.flash.action.ActionTreeOperation;
 import com.jpexs.decompiler.flash.action.ConstantPoolTooBigException;
 import com.jpexs.decompiler.flash.dumpview.DumpInfoSpecialType;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
@@ -33,13 +34,18 @@ import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
+import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
+ * DoInitAction tag - Instructs Flash Player to perform a list of actions when a
+ * sprite is initialized.
  *
  * @author JPEXS
  */
@@ -65,6 +71,9 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     @Internal
     private String scriptName = "-";
 
+    @Internal
+    private String exportedScriptName = "-";
+
     @Override
     public String getScriptName() {
         return scriptName;
@@ -73,7 +82,7 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DoInitActionTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -88,9 +97,9 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DoInitActionTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -107,7 +116,7 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -130,10 +139,10 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
      * Converts actions to ASM source
      *
      * @param exportMode PCode or hex?
-     * @param writer
-     * @param actions
+     * @param writer Writer
+     * @param actions Actions
      * @return ASM source
-     * @throws java.lang.InterruptedException
+     * @throws InterruptedException On interrupt
      */
     @Override
     public GraphTextWriter getASMSource(ScriptExportMode exportMode, GraphTextWriter writer, ActionList actions) throws InterruptedException {
@@ -149,7 +158,16 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
             actions = getActions();
         }
 
-        return Action.actionsToSource(this, actions, getScriptName(), writer);
+        return Action.actionsToSource(swf.getUninitializedAs2ClassTraits(), this, actions, getScriptName(), writer, getCharset());
+    }
+
+    @Override
+    public GraphTextWriter getActionScriptSource(GraphTextWriter writer, ActionList actions, List<ActionTreeOperation> treeOperations) throws InterruptedException {
+        if (actions == null) {
+            actions = getActions();
+        }
+
+        return Action.actionsToSource(swf.getUninitializedAs2ClassTraits(), this, actions, getScriptName(), writer, getCharset(), treeOperations);
     }
 
     @Override
@@ -221,13 +239,19 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     }
 
     @Override
-    public String getName() {
+    public Map<String, String> getNameProperties() {
         String expName = swf == null ? "" : swf.getExportName(spriteId);
+
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("sid", "" + spriteId);
+
         if (expName == null || expName.isEmpty()) {
-            return super.getName();
+            return ret;
         }
-        String[] pathParts = expName.contains(".") ? expName.split("\\.") : new String[]{expName};
-        return pathParts[pathParts.length - 1];
+        //String[] pathParts = expName.contains(".") ? expName.split("\\.") : new String[]{expName};
+        //ret.put("exp", pathParts[pathParts.length - 1]);   
+        ret.put("exp", expName);
+        return ret;
     }
 
     @Override
@@ -258,5 +282,34 @@ public class DoInitActionTag extends Tag implements CharacterIdTag, ASMSource {
     @Override
     public void setSourceTag(Tag t) {
         //nothing
+    }
+
+    @Override
+    public Tag getTag() {
+        return null; //?
+    }
+
+    @Override
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
+        needed.add(spriteId);
+    }
+
+    @Override
+    public List<GraphTargetItem> getActionsToTree() {
+        try {
+            return Action.actionsToTree(swf.getUninitializedAs2ClassTraits(), true, false, getActions(), swf.version, 0, "", swf.getCharset());
+        } catch (InterruptedException ex) {
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public String getExportedScriptName() {
+        return exportedScriptName;
+    }
+
+    @Override
+    public void setExportedScriptName(String scriptName) {
+        this.exportedScriptName = scriptName;
     }
 }

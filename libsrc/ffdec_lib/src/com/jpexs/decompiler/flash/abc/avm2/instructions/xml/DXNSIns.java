@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.xml;
 
 import com.jpexs.decompiler.flash.abc.AVM2LocalData;
@@ -28,11 +29,15 @@ import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.List;
 
 /**
+ * dxns instruction - Set default XML namespace.
  *
  * @author JPEXS
  */
 public class DXNSIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DXNSIns() {
         super(0x06, "dxns", new int[]{AVM2Code.DAT_STRING_INDEX}, true);
     }

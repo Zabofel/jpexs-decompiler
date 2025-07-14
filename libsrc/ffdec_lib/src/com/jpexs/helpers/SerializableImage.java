@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import com.jpexs.decompiler.flash.helpers.ImageHelper;
@@ -35,6 +36,7 @@ import java.io.Serializable;
 import java.util.Hashtable;
 
 /**
+ * Serializable image.
  *
  * @author JPEXS
  */
@@ -65,7 +67,7 @@ public class SerializableImage implements Serializable {
 
     public SerializableImage(int width, int height, int imageType, int[] pixels) {
         if (imageType != BufferedImage.TYPE_INT_ARGB_PRE && imageType != BufferedImage.TYPE_INT_RGB) {
-            throw new Error("Unsuppported image type: " + imageType);
+            throw new Error("Unsupported image type: " + imageType);
         }
 
         image = new BufferedImage(width, height, imageType);
@@ -84,7 +86,7 @@ public class SerializableImage implements Serializable {
         return image;
     }
 
-    public BufferedImage getComatibleBufferedImage() {
+    public BufferedImage getCompatibleBufferedImage() {
         BufferedImage img = getBufferedImage();
 
         if (GraphicsEnvironment.isHeadless()) { //No GUI, no compatible image

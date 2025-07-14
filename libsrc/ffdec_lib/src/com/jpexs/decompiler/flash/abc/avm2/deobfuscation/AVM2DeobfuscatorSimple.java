@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.deobfuscation;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -63,14 +64,11 @@ import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PopIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushByteIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushDoubleIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushFalseIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushIntegerTypeIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushIntIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushNanIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushNullIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushShortIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushStringIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushTrueIns;
-import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushUIntIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.PushUndefinedIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.stack.SwapIns;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.types.CoerceOrConvertTypeIns;
@@ -78,22 +76,45 @@ import com.jpexs.decompiler.flash.abc.types.MethodBody;
 import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.ecma.NotCompileTime;
 import com.jpexs.decompiler.flash.ecma.Undefined;
-import com.jpexs.decompiler.flash.helpers.SWFDecompilerAdapter;
 import com.jpexs.decompiler.flash.helpers.collections.FixItemCounterStack;
 import com.jpexs.decompiler.graph.TranslateException;
+import com.jpexs.helpers.CancellableWorker;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 
 /**
+ * Simple AVM2 deobfuscator.
  *
  * @author JPEXS
  */
-public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
+public class AVM2DeobfuscatorSimple extends AVM2DeobfuscatorZeroJumpsNullPushes {
 
+    /**
+     * Maximum number of instructions to execute in one pass
+     */
     private final int executionLimit = 30000;
 
+    /**
+     * Constructor.
+     */
+    public AVM2DeobfuscatorSimple() {
+
+    }
+
+    /**
+     * Removes obfuscation ifs.
+     *
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param body Method body
+     * @param inlineIns Inline instruction
+     * @return True if code was modified
+     * @throws InterruptedException On interrupt
+     */
     protected boolean removeObfuscationIfs(int classIndex, boolean isStatic, int scriptIndex, ABC abc, MethodBody body, AVM2Instruction inlineIns) throws InterruptedException {
         AVM2Code code = body.getCode();
         if (code.code.isEmpty()) {
@@ -115,7 +136,7 @@ public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
 
         int localReservedCount = body.getLocalReservedCount();
         for (int i = 0; i < code.code.size(); i++) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (CancellableWorker.isInterrupted()) {
                 throw new InterruptedException();
             }
 
@@ -131,61 +152,14 @@ public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
         return false;
     }
 
-    protected boolean removeZeroJumps(AVM2Code code, MethodBody body) throws InterruptedException {
-        boolean result = false;
-        for (int i = 0; i < code.code.size(); i++) {
-            AVM2Instruction ins = code.code.get(i);
-            if (ins.definition instanceof JumpIns) {
-                if (ins.operands[0] == 0) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        throw new InterruptedException();
-                    }
-
-                    code.removeInstruction(i, body);
-                    i--;
-                    result = true;
-                }
-            }
-        }
-        return result;
-    }
-
-    protected boolean removeNullPushes(AVM2Code code, MethodBody body) throws InterruptedException {
-        boolean result = false;
-        Set<Long> offsets = code.getImportantOffsets(body, true);
-
-        // Deliberately skip over instruction zero
-        for (int i = 1; i < code.code.size(); i++) {
-            AVM2Instruction ins1 = code.code.get(i - 1);
-            AVM2Instruction ins2 = code.code.get(i);
-            if (ins2.definition instanceof PopIns
-                    && !offsets.contains(ins2.getAddress())
-                    && (ins1.definition instanceof PushByteIns
-                    || ins1.definition instanceof PushDoubleIns
-                    || ins1.definition instanceof PushFalseIns
-                    || ins1.definition instanceof PushIntIns
-                    || ins1.definition instanceof PushNanIns
-                    || ins1.definition instanceof PushNullIns
-                    || ins1.definition instanceof PushShortIns
-                    || ins1.definition instanceof PushStringIns
-                    || ins1.definition instanceof PushTrueIns
-                    || ins1.definition instanceof PushUIntIns
-                    || ins1.definition instanceof PushUndefinedIns)) {
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException();
-                }
-
-                code.removeInstruction(i - 1, body);
-                i--;
-                code.removeInstruction(i, body);
-                i--;
-                offsets = code.getImportantOffsets(body, true); //update offsets, they changed because of removing instruction
-                result = true;
-            }
-        }
-        return result;
-    }
-
+    /**
+     * Initializes local registers.
+     *
+     * @param localData Local data
+     * @param localReservedCount Count of reserved local registers
+     * @param maxRegs Maximum registers
+     * @param executeFromFirst Execute from first
+     */
     protected void initLocalRegs(LocalDataArea localData, int localReservedCount, int maxRegs, boolean executeFromFirst) {
         for (int i = 0; i < localReservedCount; i++) {
             localData.localRegisters.put(i, NotCompileTime.INSTANCE);
@@ -195,6 +169,21 @@ public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
         }
     }
 
+    /**
+     * Executes instructions.
+     *
+     * @param staticRegs Static registers
+     * @param body Method body
+     * @param abc ABC
+     * @param code AVM2 code
+     * @param localData Local data
+     * @param idx Start index
+     * @param endIdx End index
+     * @param result Execution result
+     * @param inlineIns Inline instruction
+     * @return True if code was modified
+     * @throws InterruptedException On interrupt
+     */
     private boolean executeInstructions(Map<Integer, Object> staticRegs, MethodBody body, ABC abc, AVM2Code code, LocalDataArea localData, int idx, int endIdx, ExecutionResult result, AVM2Instruction inlineIns) throws InterruptedException {
         int instructionsProcessed = 0;
 
@@ -406,6 +395,19 @@ public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
         return modified;
     }
 
+    /**
+     * Simple deobfuscation.
+     *
+     * @param path Path
+     * @param classIndex Class index
+     * @param isStatic Is static
+     * @param scriptIndex Script index
+     * @param abc ABC
+     * @param trait Trait
+     * @param methodInfo Method info
+     * @param body Method body
+     * @throws InterruptedException On interrupt
+     */
     @Override
     public void avm2CodeRemoveTraps(String path, int classIndex, boolean isStatic, int scriptIndex, ABC abc, Trait trait, int methodInfo, MethodBody body) throws InterruptedException {
         AVM2Code code = body.getCode();
@@ -415,12 +417,24 @@ public class AVM2DeobfuscatorSimple extends SWFDecompilerAdapter {
         removeNullPushes(code, body);
     }
 
+    /**
+     * Execution result.
+     */
     class ExecutionResult {
 
+        /**
+         * Ip
+         */
         public int idx = -1;
 
+        /**
+         * Number of instructions processed
+         */
         public int instructionsProcessed = -1;
 
+        /**
+         * Stack
+         */
         public Stack<Object> stack = new Stack<>();
     }
 }

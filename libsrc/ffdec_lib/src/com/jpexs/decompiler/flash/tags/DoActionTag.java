@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@ import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
+import com.jpexs.decompiler.flash.action.ActionTreeOperation;
 import com.jpexs.decompiler.flash.action.ConstantPoolTooBigException;
 import com.jpexs.decompiler.flash.dumpview.DumpInfoSpecialType;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
@@ -30,15 +31,17 @@ import com.jpexs.decompiler.flash.tags.base.ASMSource;
 import com.jpexs.decompiler.flash.types.annotations.HideInRawEdit;
 import com.jpexs.decompiler.flash.types.annotations.Internal;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
+import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.helpers.ByteArrayRange;
 import com.jpexs.helpers.Helper;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
- * Instructs Flash Player to perform a list of actions when the current frame is
- * complete.
+ * DoAction tag - Instructs Flash Player to perform a list of actions when the
+ * current frame is complete.
  *
  * @author JPEXS
  */
@@ -58,6 +61,9 @@ public class DoActionTag extends Tag implements ASMSource {
     @Internal
     private String scriptName = "-";
 
+    @Internal
+    private String exportedScriptName = "-";
+
     @Override
     public String getScriptName() {
         return scriptName;
@@ -66,7 +72,7 @@ public class DoActionTag extends Tag implements ASMSource {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DoActionTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -76,8 +82,8 @@ public class DoActionTag extends Tag implements ASMSource {
     /**
      * Constructor
      *
-     * @param swf
-     * @param data
+     * @param swf SWF
+     * @param data Data
      */
     public DoActionTag(SWF swf, ByteArrayRange data) {
         super(swf, ID, NAME, data);
@@ -87,9 +93,9 @@ public class DoActionTag extends Tag implements ASMSource {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws java.io.IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DoActionTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -110,7 +116,7 @@ public class DoActionTag extends Tag implements ASMSource {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -121,10 +127,10 @@ public class DoActionTag extends Tag implements ASMSource {
      * Converts actions to ASM source
      *
      * @param exportMode PCode or hex?
-     * @param writer
-     * @param actions
+     * @param writer Writer
+     * @param actions Actions
      * @return ASM source
-     * @throws java.lang.InterruptedException
+     * @throws InterruptedException On interrupt
      */
     @Override
     public GraphTextWriter getASMSource(ScriptExportMode exportMode, GraphTextWriter writer, ActionList actions) throws InterruptedException {
@@ -141,7 +147,16 @@ public class DoActionTag extends Tag implements ASMSource {
             actions = getActions();
         }
 
-        return Action.actionsToSource(this, actions, getScriptName(), writer);
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, getCharset());
+    }
+
+    @Override
+    public GraphTextWriter getActionScriptSource(GraphTextWriter writer, ActionList actions, List<ActionTreeOperation> treeOperations) throws InterruptedException {
+        if (actions == null) {
+            actions = getActions();
+        }
+
+        return Action.actionsToSource(new HashMap<>(), this, actions, getScriptName(), writer, getCharset(), treeOperations);
     }
 
     /**
@@ -230,5 +245,29 @@ public class DoActionTag extends Tag implements ASMSource {
     @Override
     public void setSourceTag(Tag t) {
         //nothing
+    }
+
+    @Override
+    public Tag getTag() {
+        return null; //?
+    }
+
+    @Override
+    public List<GraphTargetItem> getActionsToTree() {
+        try {
+            return Action.actionsToTree(new HashMap<>(), false, false, getActions(), swf.version, 0, "", swf.getCharset());
+        } catch (InterruptedException ex) {
+            return new ArrayList<>();
+        }
+    }
+
+    @Override
+    public String getExportedScriptName() {
+        return exportedScriptName;
+    }
+
+    @Override
+    public void setExportedScriptName(String scriptName) {
+        this.exportedScriptName = scriptName;
     }
 }

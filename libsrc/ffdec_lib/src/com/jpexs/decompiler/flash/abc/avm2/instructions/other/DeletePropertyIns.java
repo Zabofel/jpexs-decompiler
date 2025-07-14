@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.other;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -26,14 +27,19 @@ import com.jpexs.decompiler.flash.abc.avm2.model.FullMultinameAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.DeletePropertyAVM2Item;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.helpers.Reference;
 import java.util.List;
 
 /**
+ * deleteproperty instruction - delete property from object.
  *
  * @author JPEXS
  */
 public class DeletePropertyIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public DeletePropertyIns() {
         super(0x6a, "deleteproperty", new int[]{AVM2Code.DAT_MULTINAME_INDEX}, true);
     }
@@ -54,8 +60,11 @@ public class DeletePropertyIns extends InstructionDefinition {
         int multinameIndex = ins.operands[0];
         FullMultinameAVM2Item multiname = resolveMultiname(localData, true, stack, localData.getConstants(), multinameIndex, ins);
         GraphTargetItem obj = stack.pop();
-        //stack.add(new BooleanAVM2Item(ins, localData.lineStartInstruction, Boolean.TRUE));//property successfully deleted
-        stack.add(new DeletePropertyAVM2Item(ins, localData.lineStartInstruction, obj, multiname));
+        Reference<Boolean> isStatic = new Reference<>(false);
+        Reference<GraphTargetItem> type = new Reference<>(null);
+        Reference<GraphTargetItem> callType = new Reference<>(null);
+        GetPropertyIns.resolvePropertyType(localData, obj, multiname, isStatic, type, callType);
+        stack.add(new DeletePropertyAVM2Item(ins, localData.lineStartInstruction, obj, multiname, isStatic.getVal()));
     }
 
     @Override

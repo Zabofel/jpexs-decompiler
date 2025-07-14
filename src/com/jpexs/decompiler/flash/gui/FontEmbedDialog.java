@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,14 +17,17 @@
 package com.jpexs.decompiler.flash.gui;
 
 import com.jpexs.decompiler.flash.configuration.Configuration;
+import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.tags.font.CharacterRanges;
 import com.jpexs.helpers.Helper;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontFormatException;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
@@ -40,19 +43,16 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileFilter;
 
 /**
- *
  * @author JPEXS
  */
 public class FontEmbedDialog extends AppDialog {
@@ -65,7 +65,7 @@ public class FontEmbedDialog extends AppDialog {
 
     private final JCheckBox[] rangeCheckboxes;
 
-    private final String rangeNames[];
+    private final String[] rangeNames;
 
     private final JLabel[] rangeSamples;
 
@@ -73,17 +73,43 @@ public class FontEmbedDialog extends AppDialog {
 
     private int result = ERROR_OPTION;
 
-    private JLabel individialSample;
+    private JLabel individualSample;
 
     private Font customFont;
 
     private final JCheckBox allCheckbox;
+
+    private final JCheckBox importAscentDescentLeadingCheckBox;
+
+    private final JTextField fontNameTextField;
+
+    public String getCreateFontName() {
+        return fontNameTextField.getText();
+    }
 
     public Font getSelectedFont() {
         if (ttfFileRadio.isSelected() && customFont != null) {
             return customFont;
         }
         return ((FontFace) faceSelection.getSelectedItem()).font;
+    }
+
+    public boolean isBold() {
+        if (ttfFileRadio.isSelected() && customFont != null) {
+            return customFont.isBold();
+        }
+        return ((FontFace) faceSelection.getSelectedItem()).isBold();
+    }
+
+    public boolean isItalic() {
+        if (ttfFileRadio.isSelected() && customFont != null) {
+            return customFont.isItalic();
+        }
+        return ((FontFace) faceSelection.getSelectedItem()).isItalic();
+    }
+
+    public boolean isImportAscentDescentLeading() {
+        return importAscentDescentLeadingCheckBox.isSelected();
     }
 
     public Set<Integer> getSelectedChars() {
@@ -127,13 +153,24 @@ public class FontEmbedDialog extends AppDialog {
         faceSelection.setModel(FontPanel.getFaceModel((FontFamily) familyNamesSelection.getSelectedItem()));
     }
 
-    public FontEmbedDialog(FontFace selectedFace, String selectedChars) {
+    public FontEmbedDialog(Window owner, boolean hasLayout, FontFace selectedFace, String selectedChars, boolean create) {
+        super(owner);
         setSize(900, 600);
         setDefaultCloseOperation(HIDE_ON_CLOSE);
         setTitle(translate("dialog.title"));
 
         Container cnt = getContentPane();
         cnt.setLayout(new BoxLayout(cnt, BoxLayout.Y_AXIS));
+
+        fontNameTextField = new JTextField(30);
+        fontNameTextField.setText(translate("font.name.default"));
+        fontNameTextField.selectAll();
+        if (create) {
+            JPanel fontNamePanel = new JPanel(new FlowLayout());
+            fontNamePanel.add(new JLabel(translate("font.name")));
+            fontNamePanel.add(fontNameTextField);
+            cnt.add(fontNamePanel);
+        }
 
         JPanel selFontPanel = new JPanel(new FlowLayout());
 
@@ -146,7 +183,7 @@ public class FontEmbedDialog extends AppDialog {
 
         installedRadio.setSelected(true);
 
-        individialSample = new JLabel();
+        individualSample = new JLabel();
         familyNamesSelection = new JComboBox<>(FontPanel.getFamilyModel());
         familyNamesSelection.setSelectedItem(new FontFamily(selectedFace.font));
         faceSelection = new JComboBox<>();
@@ -155,6 +192,7 @@ public class FontEmbedDialog extends AppDialog {
         JButton loadFromDiskButton = new JButton(View.getIcon("open16"));
         loadFromDiskButton.setToolTipText(translate("button.loadfont"));
         loadFromDiskButton.addActionListener(this::loadFromDiscButtonActionPerformed);
+        selFontPanel.add(new JLabel(translate("font.source")));
         selFontPanel.add(installedRadio);
         selFontPanel.add(familyNamesSelection);
         selFontPanel.add(faceSelection);
@@ -234,18 +272,27 @@ public class FontEmbedDialog extends AppDialog {
             rangeRowPanel.setAlignmentX(0);
             rangesPanel.add(rangeRowPanel);
         }
-        cnt.add(new JScrollPane(rangesPanel));
+        cnt.add(new FasterScrollPane(rangesPanel));
 
         JPanel specialPanel = new JPanel();
         specialPanel.setLayout(new BoxLayout(specialPanel, BoxLayout.X_AXIS));
         specialPanel.add(new JLabel(translate("label.individual")));
         individualCharsField = new JTextField();
         individualCharsField.setPreferredSize(new Dimension(100, individualCharsField.getPreferredSize().height));
-        individialSample = new JLabel();
+        individualSample = new JLabel();
         specialPanel.add(individualCharsField);
 
         cnt.add(specialPanel);
-        cnt.add(individialSample);
+        cnt.add(individualSample);
+
+        importAscentDescentLeadingCheckBox = new JCheckBox(translate("ascentdescentleading"));
+        importAscentDescentLeadingCheckBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        if (hasLayout && !create) {
+            cnt.add(importAscentDescentLeadingCheckBox);
+        }
+        if (create) {
+            importAscentDescentLeadingCheckBox.setSelected(true);
+        }
 
         JPanel buttonsPanel = new JPanel(new FlowLayout());
         JButton okButton = new JButton(AppStrings.translate("button.ok"));
@@ -299,7 +346,7 @@ public class FontEmbedDialog extends AppDialog {
                 visibleChars.append(chars.charAt(i));
             }
         }
-        individialSample.setText(visibleChars.toString());
+        individualSample.setText(visibleChars.toString());
     }
 
     private void updateCheckboxes() {
@@ -326,7 +373,7 @@ public class FontEmbedDialog extends AppDialog {
             rangeCheckboxes[i].setText(translate("range.description").replace("%available%", Integer.toString(avail)).replace("%name%", rangeNames[i]).replace("%total%", Integer.toString(codes.length)));
         }
         allCheckbox.setText(translate("allcharacters").replace("%available%", Integer.toString(allChars.size())));
-        individialSample.setFont(f);
+        individualSample.setFont(f);
         updateIndividual();
     }
 
@@ -375,14 +422,13 @@ public class FontEmbedDialog extends AppDialog {
         };
         fc.setFileFilter(ttfFilter);
         fc.setAcceptAllFileFilterUsed(true);
-        JFrame f = new JFrame();
-        View.setWindowIcon(f);
-        int returnVal = fc.showOpenDialog(f);
+        int returnVal = fc.showOpenDialog(this);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
             Configuration.lastOpenDir.set(Helper.fixDialogFile(fc.getSelectedFile()).getParentFile().getAbsolutePath());
             File selfile = Helper.fixDialogFile(fc.getSelectedFile());
             try {
                 customFont = Font.createFont(Font.TRUETYPE_FONT, selfile);
+                FontTag.addCustomFont(customFont, selfile);
                 ttfFileRadio.setText(translate("ttffile.selection").replace("%fontname%", customFont.getName()).replace("%filename%", selfile.getName()));
                 return true;
             } catch (FontFormatException ex) {

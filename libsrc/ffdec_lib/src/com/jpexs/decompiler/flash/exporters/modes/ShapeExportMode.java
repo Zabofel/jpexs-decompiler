@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,34 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.modes;
 
 /**
+ * Shape export mode.
  *
  * @author JPEXS
  */
 public enum ShapeExportMode {
+    /**
+     * SVG - Scalable Vector Graphics
+     */
     SVG,
+    /**
+     * PNG - Portable Network Graphics
+     */
     PNG,
+    /**
+     * HTML5 Canvas
+     */
     CANVAS,
+    /**
+     * BMP - Windows Bitmap
+     */
     BMP,
+    /**
+     * SWF - Shockwave Flash
+     */
     SWF,
 }

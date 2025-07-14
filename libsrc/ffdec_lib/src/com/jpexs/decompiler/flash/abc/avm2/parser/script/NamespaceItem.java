@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,42 +16,80 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.types.Namespace;
 import com.jpexs.decompiler.flash.abc.types.ValueKind;
+import com.jpexs.decompiler.flash.abc.types.traits.Trait;
 import com.jpexs.decompiler.flash.abc.types.traits.TraitSlotConst;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.DottedChain;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 /**
+ * Namespace.
  *
  * @author JPEXS
  */
 public class NamespaceItem {
 
+    /**
+     * Custom namespace.
+     */
+    public static final int KIND_NAMESPACE_CUSTOM = -2;
+
+    /**
+     * Name
+     */
     public DottedChain name;
 
+    /**
+     * Kind
+     */
     public int kind;
 
+    /**
+     * Namespace index
+     */
     private int nsIndex = -1;
 
+    /**
+     * Force resolves namespace.
+     * @param abcIndex ABC indexing
+     */
     public void forceResolve(AbcIndexing abcIndex) {
         nsIndex = abcIndex.getSelectedAbc().constants.getNamespaceId(kind, name, 0, true);
     }
 
+    /**
+     * Constructor.
+     * @param name Name
+     * @param kind Kind
+     */
     public NamespaceItem(DottedChain name, int kind) {
         this.name = name;
         this.kind = kind;
     }
 
+    /**
+     * Constructor.
+     * @param name Name
+     * @param kind Kind
+     */
     public NamespaceItem(String name, int kind) {
         this.name = DottedChain.parseWithSuffix(name);
         this.kind = kind;
+    }
+
+    /**
+     * Constructor.
+     * @param nsIndex Namespace index
+     */
+    public NamespaceItem(int nsIndex) {
+        this.nsIndex = nsIndex;
     }
 
     @Override
@@ -80,17 +118,31 @@ public class NamespaceItem {
         return (this.kind == other.kind);
     }
 
+    /**
+     * Resolves custom namespace.
+     * @param abcIndex ABC indexing
+     * @param importedClasses Imported classes
+     * @param pkg Package
+     * @param openedNamespaces Opened namespaces
+     * @param localData Local data
+     * @throws CompilationException On compilation error
+     */
     public void resolveCustomNs(AbcIndexing abcIndex, List<DottedChain> importedClasses, DottedChain pkg, List<NamespaceItem> openedNamespaces, SourceGeneratorLocalData localData) throws CompilationException {
         if (nsIndex > -1) { //already resolved
             return;
         }
         if (kind == Namespace.KIND_NAMESPACE) {
+            nsIndex = abcIndex.getSelectedAbc().constants.getNamespaceId(Namespace.KIND_NAMESPACE, name, 0, true);
+        }
+        if (kind == KIND_NAMESPACE_CUSTOM) {
             String custom = name.toRawString();
-            PropertyAVM2Item prop = new PropertyAVM2Item(null, custom, abcIndex, openedNamespaces, new ArrayList<>());
+            PropertyAVM2Item prop = new PropertyAVM2Item(null, false, custom, "", abcIndex, openedNamespaces, new ArrayList<>(), false);
             Reference<ValueKind> value = new Reference<>(null);
             Reference<ABC> outAbc = new Reference<>(null);
+            Reference<Boolean> isType = new Reference<>(false);
+            Reference<Trait> outPropTrait = new Reference<>(null);
 
-            prop.resolve(true, localData, new Reference<>(null), new Reference<>(null), new Reference<>(0), value, outAbc);
+            prop.resolve(true, localData, isType, new Reference<>(null), new Reference<>(null), new Reference<>(0), value, outAbc, outPropTrait);
             boolean resolved = true;
             if (value.getVal() == null) {
                 resolved = false;
@@ -120,7 +172,7 @@ public class NamespaceItem {
                     }
                 }
 
-                throw new CompilationException("Namespace \"" + name + "\"+not defined", -1);
+                throw new CompilationException("Namespace \"" + name + "\" not defined", -1);
             }
             nsIndex = abcIndex.getSelectedAbc().constants.getNamespaceId(Namespace.KIND_NAMESPACE,
                     outAbc.getVal().constants.getNamespace(value.getVal().value_index).getName(outAbc.getVal().constants), 0, true);
@@ -128,10 +180,20 @@ public class NamespaceItem {
         }
     }
 
+    /**
+     * Checks if namespace is resolved.
+     * @return True if namespace is resolved
+     */
     public boolean isResolved() {
         return nsIndex > -1;
     }
 
+    /**
+     * Gets constant pool index.
+     * @param abcIndex ABC indexing
+     * @return Constant pool index
+     * @throws CompilationException On compilation error
+     */
     public int getCpoolIndex(AbcIndexing abcIndex) throws CompilationException {
         if (nsIndex > -1) {
             return nsIndex;
@@ -143,6 +205,13 @@ public class NamespaceItem {
         return nsIndex;
     }
 
+    /**
+     * Gets namespace set index.
+     * @param abcIndex ABC indexing
+     * @param namespaces Namespaces
+     * @return Namespace set index
+     * @throws CompilationException On compilation error
+     */
     public static int getCpoolSetIndex(AbcIndexing abcIndex, List<NamespaceItem> namespaces) throws CompilationException {
         int[] nssa = new int[namespaces.size()];
         for (int i = 0; i < nssa.length; i++) {

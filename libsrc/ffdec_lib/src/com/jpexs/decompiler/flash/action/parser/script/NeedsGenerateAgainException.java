@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,6 +19,7 @@ package com.jpexs.decompiler.flash.action.parser.script;
 import java.util.List;
 
 /**
+ * Exception that is thrown when the script needs to be generated again.
  *
  * @author JPEXS
  */

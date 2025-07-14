@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -22,27 +23,37 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Decrement.
  *
  * @author JPEXS
  */
 public class DecrementActionItem extends ActionItem {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(object);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     */
     public DecrementActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object) {
         super(instruction, lineStartIns, PRECEDENCE_ADDITIVE);
         this.object = object;
@@ -50,7 +61,13 @@ public class DecrementActionItem extends ActionItem {
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        object.toString(writer, localData);
+        if (object.getPrecedence() > precedence) {
+            writer.append("(");
+            object.toString(writer, localData);
+            writer.append(")");
+        } else {
+            object.toString(writer, localData);
+        }
         return writer.append(" - 1");
     }
 
@@ -68,6 +85,11 @@ public class DecrementActionItem extends ActionItem {
         return getResult(object.getResultAsNumber());
     }
 
+    /**
+     * Get result.
+     * @param num Number
+     * @return Result
+     */
     public static Double getResult(Double num) {
         return num - 1;
     }
@@ -88,4 +110,48 @@ public class DecrementActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 53 * hash + Objects.hashCode(this.object);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DecrementActionItem other = (DecrementActionItem) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DecrementActionItem other = (DecrementActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.object, other.object)) {
+            return false;
+        }
+        return true;
+    }
+
 }

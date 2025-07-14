@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,10 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc;
 
-import com.jpexs.decompiler.flash.abc.types.Decimal;
 import com.jpexs.decompiler.flash.abc.types.Float4;
 import com.jpexs.decompiler.flash.abc.types.InstanceInfo;
 import com.jpexs.decompiler.flash.abc.types.MethodInfo;
@@ -30,24 +30,87 @@ import com.jpexs.decompiler.flash.abc.types.traits.Traits;
 import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.IOException;
 import java.io.OutputStream;
+import macromedia.asc.util.Decimal128;
 
 /**
+ * ABC output stream.
  *
  * @author JPEXS
  */
 public class ABCOutputStream extends OutputStream {
 
+    /**
+     * Output stream
+     */
     private final OutputStream os;
 
+    /**
+     * Current position
+     */
+    private long position = 0L;
+
+    /**
+     * Constructs ABC output stream.
+     *
+     * @param os Output stream
+     */
     public ABCOutputStream(OutputStream os) {
         this.os = os;
     }
 
+    /**
+     * Returns current position.
+     *
+     * @return Current position
+     */
+    public long getPosition() {
+        return position;
+    }
+
+    /**
+     * Writes a byte to the output stream.
+     *
+     * @param b The byte to write.
+     * @throws IOException On I/O error
+     */
     @Override
     public void write(int b) throws IOException {
         os.write(b);
+        position++;
     }
 
+    /**
+     * Writes a byte array to the output stream.
+     *
+     * @param data The data to write.
+     * @throws IOException On I/O error
+     */
+    @Override
+    public void write(byte[] data) throws IOException {
+        os.write(data);
+        position += data.length;
+    }
+
+    /**
+     * Writes a byte array to the output stream.
+     *
+     * @param b The data to write.
+     * @param off The start offset in the data.
+     * @param len The number of bytes to write.
+     * @throws IOException On I/O error
+     */
+    @Override
+    public void write(byte[] b, int off, int len) throws IOException {
+        os.write(b, off, len);
+        position += len;
+    }
+
+    /**
+     * Writes U30 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeU30(long value) throws IOException {
         writeS32(value);
         /*boolean loop = true;
@@ -72,6 +135,12 @@ public class ABCOutputStream extends OutputStream {
          */
     }
 
+    /**
+     * Writes U32 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeU32(long value) throws IOException {
         boolean loop = true;
         value &= 0xFFFFFFFFL;
@@ -88,6 +157,12 @@ public class ABCOutputStream extends OutputStream {
         } while (loop);
     }
 
+    /**
+     * Writes S24 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeS24(long value) throws IOException {
         int ret = (int) (value & 0xff);
         write(ret);
@@ -99,6 +174,12 @@ public class ABCOutputStream extends OutputStream {
         write(ret);
     }
 
+    /**
+     * Writes S32 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeS32(long value) throws IOException {
         boolean belowZero = value < 0;
         /*if (belowZero) {
@@ -131,6 +212,12 @@ public class ABCOutputStream extends OutputStream {
         } while (loop);
     }
 
+    /**
+     * Writes long to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeLong(long value) throws IOException {
         byte[] writeBuffer = new byte[8];
         writeBuffer[7] = (byte) (value >>> 56);
@@ -144,14 +231,36 @@ public class ABCOutputStream extends OutputStream {
         write(writeBuffer);
     }
 
+    /**
+     * Writes double to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeDouble(double value) throws IOException {
         writeLong(Double.doubleToLongBits(value));
     }
 
+    /**
+     * Writes float to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeFloat(float value) throws IOException {
-        writeU16(Float.floatToIntBits(value));
+        int val = Float.floatToIntBits(value);
+        write(val & 0xFF);
+        write((val >> 8) & 0xFF);
+        write((val >> 16) & 0xFF);
+        write((val >> 24) & 0xFF);
     }
 
+    /**
+     * Writes float4 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeFloat4(Float4 value) throws IOException {
         writeFloat(value.values[0]);
         writeFloat(value.values[1]);
@@ -159,21 +268,45 @@ public class ABCOutputStream extends OutputStream {
         writeFloat(value.values[3]);
     }
 
+    /**
+     * Writes U8 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeU8(int value) throws IOException {
         write(value);
     }
 
+    /**
+     * Writes U16 to the output stream.
+     *
+     * @param value Value to write
+     * @throws IOException On I/O error
+     */
     public void writeU16(int value) throws IOException {
         write(value & 0xff);
         write((value >> 8) & 0xff);
     }
 
+    /**
+     * Writes String to the output stream.
+     *
+     * @param s String to write
+     * @throws IOException On I/O error
+     */
     public void writeString(String s) throws IOException {
         byte[] sbytes = Utf8Helper.getBytes(s);
         writeU30(sbytes.length);
         write(sbytes);
     }
 
+    /**
+     * Writes Namespace to the output stream.
+     *
+     * @param ns Namespace to write
+     * @throws IOException On I/O error
+     */
     public void writeNamespace(Namespace ns) throws IOException {
         write(ns.kind);
         boolean found = false;
@@ -189,6 +322,12 @@ public class ABCOutputStream extends OutputStream {
         }
     }
 
+    /**
+     * Writes Multiname to the output stream.
+     *
+     * @param m Multiname to write
+     * @throws IOException On I/O error
+     */
     public void writeMultiname(Multiname m) throws IOException {
         writeU8(m.kind);
         if ((m.kind == Multiname.QNAME) || (m.kind == Multiname.QNAMEA)) {
@@ -211,6 +350,12 @@ public class ABCOutputStream extends OutputStream {
         // kind==0x11,0x12 nothing CONSTANT_RTQNameL and CONSTANT_RTQNameLA.
     }
 
+    /**
+     * Writes MethodInfo to the output stream.
+     *
+     * @param mi MethodInfo to write
+     * @throws IOException On I/O error
+     */
     public void writeMethodInfo(MethodInfo mi) throws IOException {
         writeU30(mi.param_types.length);
         writeU30(mi.ret_type);
@@ -219,7 +364,7 @@ public class ABCOutputStream extends OutputStream {
         }
         writeU30(mi.name_index);
         write(mi.flags);
-        if ((mi.flags & 8) == 8) {
+        if ((mi.flags & MethodInfo.FLAG_HAS_OPTIONAL) == MethodInfo.FLAG_HAS_OPTIONAL) {
             writeU30(mi.optional.length);
             for (int i = 0; i < mi.optional.length; i++) {
                 writeU30(mi.optional[i].value_index);
@@ -227,13 +372,19 @@ public class ABCOutputStream extends OutputStream {
             }
         }
 
-        if ((mi.flags & 128) == 128) { // if has_paramnames
+        if ((mi.flags & MethodInfo.FLAG_HAS_PARAMNAMES) == MethodInfo.FLAG_HAS_PARAMNAMES) { // if has_paramnames
             for (int i = 0; i < mi.paramNames.length; i++) {
                 writeU30(mi.paramNames[i]);
             }
         }
     }
 
+    /**
+     * Writes Trait to the output stream.
+     *
+     * @param t Trait to write
+     * @throws IOException On I/O error
+     */
     public void writeTrait(Trait t) throws IOException {
         writeU30(t.name_index);
         write((t.kindFlags << 4) + t.kindType);
@@ -261,7 +412,7 @@ public class ABCOutputStream extends OutputStream {
             writeU30(t4.slot_id);
             writeU30(t4.method_info);
         }
-        if ((t.kindFlags & 4) == 4) {
+        if ((t.kindFlags & Trait.ATTR_Metadata) == Trait.ATTR_Metadata) {
             writeU30(t.metadata.length);
             for (int i = 0; i < t.metadata.length; i++) {
                 writeU30(t.metadata[i]);
@@ -269,6 +420,12 @@ public class ABCOutputStream extends OutputStream {
         }
     }
 
+    /**
+     * Writes Traits to the output stream.
+     *
+     * @param t Traits to write
+     * @throws IOException On I/O error
+     */
     public void writeTraits(Traits t) throws IOException {
         writeU30(t.traits.size());
         for (int i = 0; i < t.traits.size(); i++) {
@@ -276,11 +433,17 @@ public class ABCOutputStream extends OutputStream {
         }
     }
 
+    /**
+     * Writes InstanceInfo to the output stream.
+     *
+     * @param ii InstanceInfo to write
+     * @throws IOException On I/O error
+     */
     public void writeInstanceInfo(InstanceInfo ii) throws IOException {
         writeU30(ii.name_index);
         writeU30(ii.super_index);
         write(ii.flags);
-        if ((ii.flags & 8) == 8) {
+        if ((ii.flags & InstanceInfo.CLASS_PROTECTEDNS) == InstanceInfo.CLASS_PROTECTEDNS) {
             writeU30(ii.protectedNS);
         }
         writeU30(ii.interfaces.length);
@@ -291,10 +454,22 @@ public class ABCOutputStream extends OutputStream {
         writeTraits(ii.instance_traits);
     }
 
-    public void writeDecimal(Decimal value) throws IOException {
-        write(value.data);
+    /**
+     * Writes Decimal to the output stream.
+     *
+     * @param value Decimal to write
+     * @throws IOException On I/O error
+     */
+    public void writeDecimal(Decimal128 value) throws IOException {
+        write(value.toIEEE());
     }
 
+    /**
+     * Gets U30 byte length.
+     *
+     * @param value Value
+     * @return Length
+     */
     public static int getU30ByteLength(long value) {
         boolean belowZero = value < 0;
         int bitcount = 0;

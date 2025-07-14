@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@ package com.jpexs.decompiler.flash.gui.hexview;
 import javax.swing.table.AbstractTableModel;
 
 /**
- *
  * @author JPEXS
  */
 public class HexViewTableModel extends AbstractTableModel {
@@ -90,7 +89,7 @@ public class HexViewTableModel extends AbstractTableModel {
     }
 
     @Override
-    public void fireTableCellUpdated(int row, int columnd) {
-        super.fireTableCellUpdated(bytesInRow, bytesInRow);
+    public void fireTableCellUpdated(int row, int column) {
+        super.fireTableCellUpdated(row, column);
     }
 }

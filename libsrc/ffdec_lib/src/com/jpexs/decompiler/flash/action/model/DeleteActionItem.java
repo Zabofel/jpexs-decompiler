@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,29 +25,42 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Delete property.
  *
  * @author JPEXS
  */
 public class DeleteActionItem extends ActionItem {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(object);
-        ret.add(propertyName);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
+        visitor.visit(propertyName);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param object Object
+     * @param propertyName Property name
+     */
     public DeleteActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.object = object;
@@ -59,7 +72,8 @@ public class DeleteActionItem extends ActionItem {
         writer.append("delete ");
         if (object != null) {
             object.toStringNoQuotes(writer, localData);
-            if (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData))) {
+            if ((propertyName instanceof DirectValueActionItem) && ((DirectValueActionItem) propertyName).isString()
+                    && (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData)))) {
                 writer.append(".");
                 propertyName.toStringNoQuotes(writer, localData);
             } else {
@@ -70,10 +84,16 @@ public class DeleteActionItem extends ActionItem {
             return writer;
         }
 
+        if (propertyName.getPrecedence() > getPrecedence()) {
+            writer.append("(");
+        }
         if (IdentifiersDeobfuscation.isValidName(false, propertyName.toStringNoQuotes(localData))) {
             propertyName.toStringNoQuotes(writer, localData);
         } else {
             propertyName.toString(writer, localData);
+        }
+        if (propertyName.getPrecedence() > getPrecedence()) {
+            writer.append(")");
         }
         return writer;
     }
@@ -98,4 +118,60 @@ public class DeleteActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 97 * hash + Objects.hashCode(this.object);
+        hash = 97 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DeleteActionItem other = (DeleteActionItem) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DeleteActionItem other = (DeleteActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.object, other.object)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
 }

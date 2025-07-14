@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  */
 package com.jpexs.process;
 
+import com.jpexs.process.Process;
 import com.jpexs.process.win32.Win32ProcessTools;
 import com.sun.jna.Platform;
 import java.util.List;

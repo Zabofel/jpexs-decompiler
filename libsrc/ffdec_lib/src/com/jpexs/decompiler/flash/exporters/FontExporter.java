@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters;
 
 import com.google.typography.font.sfntly.Font;
@@ -32,7 +33,9 @@ import com.jpexs.decompiler.flash.exporters.settings.FontExportSettings;
 import com.jpexs.decompiler.flash.exporters.shape.PathExporter;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
+import com.jpexs.decompiler.flash.tags.base.ShapeTag;
 import com.jpexs.decompiler.flash.types.SHAPE;
+import com.jpexs.helpers.CancellableWorker;
 import com.jpexs.helpers.Helper;
 import com.jpexs.helpers.Path;
 import fontastic.FGlyph;
@@ -44,13 +47,18 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * Font exporter.
  *
  * @author JPEXS
  */
@@ -58,6 +66,10 @@ public class FontExporter {
 
     public List<File> exportFonts(AbortRetryIgnoreHandler handler, String outdir, ReadOnlyTagList tags, final FontExportSettings settings, EventListener evl) throws IOException, InterruptedException {
         List<File> ret = new ArrayList<>();
+        if (CancellableWorker.isInterrupted()) {
+            return ret;
+        }
+
         if (tags.isEmpty()) {
             return ret;
         }
@@ -93,7 +105,23 @@ public class FontExporter {
                     exportFont(st, settings.mode, file);
                 }, handler).run();
 
-                ret.add(file);
+                Set<String> classNames = st.getClassNames();
+                if (Configuration.as3ExportNamesUseClassNamesOnly.get() && !classNames.isEmpty()) {
+                    for (String className : classNames) {
+                        File classFile = new File(outdir + File.separator + Helper.makeFileName(className + ext));
+                        new RetryTask(() -> {
+                            Files.copy(file.toPath(), classFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        }, handler).run();
+                        ret.add(classFile);
+                    }
+                    file.delete();
+                } else {
+                    ret.add(file);
+                }
+
+                if (CancellableWorker.isInterrupted()) {
+                    break;
+                }
 
                 if (evl != null) {
                     evl.handleExportedEvent("font", currentIndex, count, t.getName());
@@ -175,18 +203,23 @@ public class FontExporter {
             f.setDescender(value);
         }
 
-        int glyphCount = 0;
-        for (int i = 0; i < shapes.size(); i++) {
-
-            //if there are more glyphs for one char (in some weird fonts), use the last glyph
+        List<Integer> reallyExportedGlyphs = new ArrayList<>();
+        Set<Character> processedCharacters = new HashSet<>();
+        //if there are more glyphs for one char (in some weird fonts), use the last glyph            
+        for (int i = shapes.size() - 1; i >= 0; i--) {
             char c = t.glyphToChar(i);
-            while (i + 1 < shapes.size() && t.glyphToChar(i + 1) == c) {
-                i++;
+            if (!processedCharacters.contains((Character) c)) {
+                reallyExportedGlyphs.add(0, (Integer) i);
+                processedCharacters.add((Character) c);
             }
-
+        }
+        int glyphCount = 0;
+        for (Integer ii : reallyExportedGlyphs) {
+            int i = (int) ii;
+            char c = t.glyphToChar(i);
             SHAPE s = shapes.get(i);
             final List<FPoint[]> contours = new ArrayList<>();
-            PathExporter seb = new PathExporter(swf, s, null) {
+            PathExporter seb = new PathExporter(ShapeTag.WIND_EVEN_ODD, 1, swf, s, null) {
 
                 private double transformX(double x) {
                     return Math.ceil((double) (x / divider));

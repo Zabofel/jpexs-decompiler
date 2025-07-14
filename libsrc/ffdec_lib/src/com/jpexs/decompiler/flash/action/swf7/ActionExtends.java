@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,23 +20,31 @@ import com.jpexs.decompiler.flash.BaseLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionScriptObject;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.ExtendsActionItem;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * Extends action - Extends a class.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 7)
 public class ActionExtends extends Action {
 
-    public ActionExtends() {
-        super(0x69, 0);
+    /**
+     * Constructor.
+     * @param charset Charset
+     */
+    public ActionExtends(String charset) {
+        super(0x69, 0, charset);
     }
 
     @Override
@@ -64,7 +72,7 @@ public class ActionExtends extends Action {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem superclass = stack.pop();
         GraphTargetItem subclass = stack.pop();
         output.add(new ExtendsActionItem(this, lineStartAction, subclass, superclass));

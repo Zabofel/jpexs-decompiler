@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.script;
 
 import com.jpexs.decompiler.flash.AbortRetryIgnoreHandler;
@@ -26,7 +27,6 @@ import com.jpexs.helpers.Helper;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +41,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * ActionScript 1/2 script exporter.
  *
  * @author JPEXS
  */
@@ -48,10 +49,39 @@ public class AS2ScriptExporter {
 
     private static final Logger logger = Logger.getLogger(AS2ScriptExporter.class.getName());
 
+    /**
+     * Constructor.
+     */
+    public AS2ScriptExporter() {
+        
+    }
+
+    /**
+     * Export ActionScript 2 scripts.
+     * @param swf SWF
+     * @param handler AbortRetryIgnoreHandler
+     * @param outdir Output directory
+     * @param exportSettings Export settings
+     * @param parallel Parallel
+     * @param evl EventListener
+     * @return List of exported files
+     * @throws IOException On I/O error
+     */
     public List<File> exportActionScript2(SWF swf, AbortRetryIgnoreHandler handler, String outdir, ScriptExportSettings exportSettings, boolean parallel, EventListener evl) throws IOException {
         return exportAS2Scripts(handler, outdir, swf.getASMs(true), exportSettings, parallel, evl);
     }
 
+    /**
+     * Export ActionScript 2 scripts.
+     * @param handler AbortRetryIgnoreHandler
+     * @param outdir Output directory
+     * @param asms ASM sources
+     * @param exportSettings Export settings
+     * @param parallel Parallel
+     * @param evl EventListener
+     * @return List of exported files
+     * @throws IOException On I/O error
+     */
     public List<File> exportAS2Scripts(AbortRetryIgnoreHandler handler, String outdir, Map<String, ASMSource> asms, ScriptExportSettings exportSettings, boolean parallel, EventListener evl) throws IOException {
         List<File> ret = new ArrayList<>();
         if (!outdir.endsWith(File.separator)) {
@@ -62,7 +92,7 @@ public class AS2ScriptExporter {
         int cnt = 1;
         List<ExportScriptTask> tasks = new ArrayList<>();
         String[] keys = asms.keySet().toArray(new String[asms.size()]);
-        Arrays.sort(keys);
+
         for (String key : keys) {
             ASMSource asm = asms.get(key);
             String currentOutDir = outdir + key + File.separator;
@@ -88,11 +118,11 @@ public class AS2ScriptExporter {
 
         if (!parallel || tasks.size() < 2) {
             try {
-                CancellableWorker.call(new Callable<Void>() {
+                CancellableWorker.call("as2scriptexport", new Callable<Void>() {
                     @Override
                     public Void call() throws Exception {
                         for (ExportScriptTask task : tasks) {
-                            if (Thread.currentThread().isInterrupted()) {
+                            if (CancellableWorker.isInterrupted()) {
                                 throw new InterruptedException();
                             }
 
@@ -110,18 +140,23 @@ public class AS2ScriptExporter {
             ExecutorService executor = Executors.newFixedThreadPool(Configuration.getParallelThreadCount());
             List<Future<File>> futureResults = new ArrayList<>();
             for (ExportScriptTask task : tasks) {
-                Future<File> future = executor.submit(task);
+                Future<File> future = executor.submit(task);                
                 futureResults.add(future);
-            }
+            }                       
 
             try {
-                executor.shutdown();
+                executor.shutdown();                
                 if (!executor.awaitTermination(Configuration.exportTimeout.get(), TimeUnit.SECONDS)) {
-                    logger.log(Level.SEVERE, Helper.formatTimeToText(Configuration.exportTimeout.get()) + " ActionScript export limit reached");
+                    logger.log(Level.SEVERE, "{0} ActionScript export limit reached", Helper.formatTimeToText(Configuration.exportTimeout.get()));
+                    
+                    for (ExportScriptTask task : tasks) {
+                        CancellableWorker.cancelThread(task.thread);
+                    }
                 }
             } catch (InterruptedException ex) {
+                //ignored
             } finally {
-                executor.shutdownNow();
+                executor.shutdownNow();                
             }
 
             for (int f = 0; f < futureResults.size(); f++) {
@@ -130,10 +165,13 @@ public class AS2ScriptExporter {
                         ret.add(futureResults.get(f).get());
                     }
                 } catch (InterruptedException ex) {
+                    //ignored
                 } catch (ExecutionException ex) {
-                    logger.log(Level.SEVERE, "Error during ABC export", ex);
+                    if (!(ex.getCause() instanceof InterruptedException)) {
+                        logger.log(Level.SEVERE, "Error during ActionScript export", ex);
+                    }
                 }
-            }
+            }            
         }
 
         return ret;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,7 +33,9 @@ import com.jpexs.decompiler.graph.Graph;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
+import com.jpexs.decompiler.graph.model.BranchStackResistant;
 import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
@@ -41,56 +43,165 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Function.
  *
  * @author JPEXS
  */
-public class FunctionActionItem extends ActionItem {
+public class FunctionActionItem extends ActionItem implements BranchStackResistant {
 
+    /**
+     * Decompile get/set functions
+     */
+    public static final boolean DECOMPILE_GET_SET = true;
+
+    /**
+     * Is getter
+     */
+    public boolean isGetter = false;
+
+    /**
+     * Is setter
+     */
+    public boolean isSetter = false;
+
+    /**
+     * Actions
+     */
     public List<GraphTargetItem> actions;
 
+    /**
+     * Constants
+     */
     public List<String> constants;
 
+    /**
+     * Function name
+     */
     public String functionName;
 
+    /**
+     * Parameter names
+     */
     public List<String> paramNames;
 
+    /**
+     * Register names
+     */
     public Map<Integer, String> regNames;
 
+    /**
+     * Calculated function name
+     */
     public GraphTargetItem calculatedFunctionName;
 
+    /**
+     * Has eval
+     */
+    public boolean hasEval = false;
+
+    /**
+     * Register start
+     */
     private int regStart;
 
+    /**
+     * Variables
+     */
     private List<VariableActionItem> variables;
-    private List<FunctionActionItem> innerFunctions;
 
+    /**
+     * Inner functions
+     */
+    private List<FunctionActionItem> innerFunctions;
+    
+    /**
+     * Parameter positions in the codde
+     */
+    public List<Integer> paramPositions;
+
+    /**
+     * Parameter registers
+     */
+    private List<Integer> paramRegisters;
+    
+    /**
+     * Register - this
+     */
     public static final int REGISTER_THIS = 1;
 
+    /**
+     * Register - arguments
+     */
     public static final int REGISTER_ARGUMENTS = 2;
 
+    /**
+     * Register - super
+     */
     public static final int REGISTER_SUPER = 3;
 
+    /**
+     * Register - root
+     */
     public static final int REGISTER_ROOT = 4;
 
+    /**
+     * Register - parent
+     */
     public static final int REGISTER_PARENT = 5;
 
+    /**
+     * Register - global
+     */
     public static final int REGISTER_GLOBAL = 6;
+    
+    
+    
+    
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.addAll(actions);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visitAll(actions);
     }
 
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+
+    }
+
+    /**
+     * Adds variable.
+     * @param variable Variable
+     */
+    public void addVariable(VariableActionItem variable) {
+        variables.add(variable);
+    }
+
+    /**
+     * Constructor.
+     */
     public FunctionActionItem() {
         super(null, null, PRECEDENCE_PRIMARY);
     }
 
-    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions) {
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param functionName Function name
+     * @param paramNames Parameter names
+     * @param regNames Register names
+     * @param actions Actions
+     * @param constants Constants
+     * @param regStart Register start
+     * @param variables Variables
+     * @param innerFunctions Inner functions
+     * @param hasEval Has eval
+     * @param paramPositions Parameter positions
+     */
+    public FunctionActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, String functionName, List<String> paramNames, Map<Integer, String> regNames, List<GraphTargetItem> actions, List<String> constants, int regStart, List<VariableActionItem> variables, List<FunctionActionItem> innerFunctions, boolean hasEval, List<Integer> paramPositions, List<Integer> paramRegisters) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.actions = actions;
         this.constants = constants;
@@ -100,6 +211,9 @@ public class FunctionActionItem extends ActionItem {
         this.regStart = regStart;
         this.variables = variables;
         this.innerFunctions = innerFunctions;
+        this.hasEval = hasEval;
+        this.paramPositions = paramPositions;
+        this.paramRegisters = paramRegisters;
     }
 
     @Override
@@ -111,24 +225,52 @@ public class FunctionActionItem extends ActionItem {
             srcData.localName = n;
             srcData.declaration = true;
         }
+
         writer.append("function");
+        if (DECOMPILE_GET_SET) {
+            if (isGetter) {
+                writer.append(" get");
+            }
+            if (isSetter) {
+                writer.append(" set");
+            }
+        }
         if (calculatedFunctionName != null) {
             writer.append(" ");
             String fname = calculatedFunctionName.toStringNoQuotes(localData);
+            if (DECOMPILE_GET_SET) {
+                if (isGetter && fname.startsWith("__get__")) {
+                    fname = fname.substring(7);
+                }
+                if (isSetter && fname.startsWith("__set__")) {
+                    fname = fname.substring(7);
+                }
+            }
+
             if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
                 IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
             } else {
-                calculatedFunctionName.appendToNoQuotes(writer, localData);
+                writer.append(fname);
+                //calculatedFunctionName.appendToNoQuotes(writer, localData);
             }
         } else if (!functionName.isEmpty()) {
+            String fname = functionName;
+            if (DECOMPILE_GET_SET) {
+                if (isGetter && fname.startsWith("__get__")) {
+                    fname = fname.substring(7);
+                }
+                if (isSetter && fname.startsWith("__set__")) {
+                    fname = fname.substring(7);
+                }
+            }
             writer.append(" ");
-            if (!IdentifiersDeobfuscation.isValidName(false, functionName)) {
-                IdentifiersDeobfuscation.appendObfuscatedIdentifier(functionName, writer);
+            if (!IdentifiersDeobfuscation.isValidName(false, fname)) {
+                IdentifiersDeobfuscation.appendObfuscatedIdentifier(fname, writer);
             } else {
-                writer.append(functionName);
+                writer.append(fname);
             }
         }
-        writer.spaceBeforeCallParenthesies(paramNames.size());
+        writer.spaceBeforeCallParenthesis(paramNames.size());
         writer.append("(");
 
         Map<String, Integer> n2r = new HashMap<>();
@@ -142,7 +284,11 @@ public class FunctionActionItem extends ActionItem {
             }
             String pname = paramNames.get(p);
             if (pname == null || pname.isEmpty()) {
-                pname = new RegisterNumber(regStart + p).translate();
+                if (paramRegisters != null) {
+                    pname = new RegisterNumber(paramRegisters.get(p)).translate();
+                } else {
+                    pname = new RegisterNumber(regStart + p).translate();
+                }                
             }
             HighlightData d = getSrcData();
             d.localName = pname;
@@ -180,6 +326,8 @@ public class FunctionActionItem extends ActionItem {
         return false;
     }
 
+    /*
+    NOT COMPILE TIME! This causes problems in simplifyExpressions, etc.
     @Override
     public boolean isCompileTime(Set<GraphTargetItem> dependencies) {
         for (GraphTargetItem a : actions) {
@@ -192,8 +340,7 @@ public class FunctionActionItem extends ActionItem {
             }
         }
         return true;
-    }
-
+    }*/
     @Override
     public Object getResult() {
         if (!actions.isEmpty()) {
@@ -209,6 +356,10 @@ public class FunctionActionItem extends ActionItem {
     public boolean needsNewLine() {
         return true;
     }
+
+    public List<VariableActionItem> getVariables() {
+        return variables;
+    }        
 
     private Set<String> getDefinedVariableNames(List<VariableActionItem> variables) {
         Set<String> ret = new HashSet<>();
@@ -234,8 +385,15 @@ public class FunctionActionItem extends ActionItem {
         }
     }
 
+    public List<FunctionActionItem> getInnerFunctions() {
+        return innerFunctions;
+    }        
+
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
+
+        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
+        String charset = asGenerator.getCharset();
 
         Set<String> usedNames = new HashSet<>();
         for (VariableActionItem v : variables) {
@@ -243,7 +401,6 @@ public class FunctionActionItem extends ActionItem {
         }
 
         List<GraphSourceItem> ret = new ArrayList<>();
-        ActionSourceGenerator asGenerator = (ActionSourceGenerator) generator;
         List<Integer> paramRegs = new ArrayList<>();
         SourceGeneratorLocalData localDataCopy = Helper.deepCopy(localData);
         localDataCopy.inFunction++;
@@ -254,7 +411,7 @@ public class FunctionActionItem extends ActionItem {
         boolean preloadThisFlag = false;
         boolean preloadGlobalFlag = false;
 
-        boolean suppressParentFlag = false;
+        boolean suppressSuperFlag = false;
         boolean suppressArgumentsFlag = false;
         boolean suppressThisFlag = false;
 
@@ -280,7 +437,10 @@ public class FunctionActionItem extends ActionItem {
             preloadSuperFlag = true;
             needsFun2 = true;
             registerNames.add("super");
+        } else {
+            suppressSuperFlag = true;
         }
+
         if (usedNames.contains("_root")) {
             preloadRootFlag = true;
             needsFun2 = true;
@@ -290,8 +450,6 @@ public class FunctionActionItem extends ActionItem {
             preloadParentFlag = true;
             needsFun2 = true;
             registerNames.add("_parent");
-        } else {
-            suppressParentFlag = true;
         }
         if (usedNames.contains("_global")) {
             needsFun2 = true;
@@ -345,7 +503,8 @@ public class FunctionActionItem extends ActionItem {
                 String varName = v.getVariableName();
                 GraphTargetItem stored = v.getStoreValue();
                 if (needsFun2) {
-                    if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)) {
+                    if (v.isDefinition() && !registerNames.contains(varName) && !deeplyUsedVariableNames.contains(varName)
+                            && !hasEval) {
                         registerNames.add(varName);
                     }
                 }
@@ -390,19 +549,19 @@ public class FunctionActionItem extends ActionItem {
         }
         int len = Action.actionsToBytes(asGenerator.toActionList(ret), false, SWF.DEFAULT_VERSION).length;
         if (!needsFun2 && paramNames.isEmpty()) {
-            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, SWF.DEFAULT_VERSION));
+            ret.add(0, new ActionDefineFunction(functionName, paramNames, len, SWF.DEFAULT_VERSION, charset));
         } else {
             ret.add(0, new ActionDefineFunction2(functionName,
                     preloadParentFlag,
                     preloadRootFlag,
-                    suppressParentFlag,
+                    suppressSuperFlag,
                     preloadSuperFlag,
                     suppressArgumentsFlag,
                     preloadArgumentsFlag,
                     suppressThisFlag,
                     preloadThisFlag,
                     preloadGlobalFlag,
-                    regCount, len, SWF.DEFAULT_VERSION, paramNames, paramRegs));
+                    regCount, len, SWF.DEFAULT_VERSION, paramNames, paramRegs, charset));
         }
 
         return ret;
@@ -412,4 +571,10 @@ public class FunctionActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return false; //function actually returns itself, but here is false for generator to not add Pop
     }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true; //??
+    }
+    //What about hashcode and equals? Probably not.
 }

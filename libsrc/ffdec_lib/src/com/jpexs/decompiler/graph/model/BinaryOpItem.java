@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,32 +12,52 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphPart;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
-import java.util.ArrayList;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
+import com.jpexs.decompiler.graph.SimpleValue;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Binary operation. Operation on two operands.
  *
  * @author JPEXS
  */
 public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
 
+    /**
+     * Left side of the operation
+     */
     public GraphTargetItem leftSide;
 
+    /**
+     * Right side of the operation
+     */
     public GraphTargetItem rightSide;
 
+    /**
+     * Operator
+     */
     protected final String operator;
 
+    /**
+     * Coerce left side to this type
+     */
     protected String coerceLeft;
+
+    /**
+     * Coerce right side to this type
+     */
     protected String coerceRight;
 
     @Override
@@ -49,8 +69,21 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         return fp;
     }
 
-    public BinaryOpItem(GraphSourceItem instruction, GraphSourceItem lineStartItem, int precedence, GraphTargetItem leftSide, GraphTargetItem rightSide, String operator, String coerceLeft, String coerceRight) {
-        super(instruction, lineStartItem, precedence);
+    /**
+     * Constructor.
+     *
+     * @param dialect Dialect
+     * @param instruction Instruction
+     * @param lineStartItem Line start item
+     * @param precedence Precedence
+     * @param leftSide Left side
+     * @param rightSide Right side
+     * @param operator Operator
+     * @param coerceLeft Coerce left
+     * @param coerceRight Coerce right
+     */
+    public BinaryOpItem(GraphTargetDialect dialect, GraphSourceItem instruction, GraphSourceItem lineStartItem, int precedence, GraphTargetItem leftSide, GraphTargetItem rightSide, String operator, String coerceLeft, String coerceRight) {
+        super(dialect, instruction, lineStartItem, precedence);
         this.leftSide = leftSide;
         this.rightSide = rightSide;
         this.operator = operator;
@@ -61,8 +94,14 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
     @Override
     public GraphTargetItem simplify(String implicitCoerce) {
         BinaryOpItem r = (BinaryOpItem) clone();
-        r.leftSide = r.leftSide.simplify(coerceLeft);
+        r.leftSide = r.leftSide.simplify(coerceLeft);                
         r.rightSide = r.rightSide.simplify(coerceRight);
+        
+        if (r.leftSide == this.leftSide
+                && r.rightSide == this.rightSide) {
+            r = this;
+        }
+        
         return simplifySomething(r, implicitCoerce);
     }
 
@@ -71,10 +110,10 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         int leftPrecedence = leftSide.getPrecedence();
         if (leftPrecedence > precedence && leftPrecedence != GraphTargetItem.NOPRECEDENCE) {
             writer.append("(");
-            leftSide.toString(writer, localData, coerceLeft);
+            operandToString(leftSide, writer, localData);
             writer.append(")");
         } else {
-            leftSide.toString(writer, localData, coerceLeft);
+            operandToString(leftSide, writer, localData);
         }
 
         writer.append(" ");
@@ -84,12 +123,24 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         int rightPrecedence = rightSide.getPrecedence();
         if (rightPrecedence >= precedence && rightPrecedence != GraphTargetItem.NOPRECEDENCE) {
             writer.append("(");
-            rightSide.toString(writer, localData, coerceRight);
+            operandToString(rightSide, writer, localData);
             writer.append(")");
         } else {
-            rightSide.toString(writer, localData, coerceRight);
+            operandToString(rightSide, writer, localData);
         }
         return writer;
+    }
+
+    /**
+     * Converts operand to string
+     *
+     * @param operand Operand
+     * @param writer Writer
+     * @param localData Local data
+     * @throws InterruptedException On interrupt
+     */
+    protected void operandToString(GraphTargetItem operand, GraphTextWriter writer, LocalData localData) throws InterruptedException {
+        operand.toString(writer, localData, "");
     }
 
     @Override
@@ -105,11 +156,15 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         if (dependencies.contains(leftSide)) {
             return false;
         }
-        dependencies.add(leftSide);
+        if (!((leftSide instanceof SimpleValue) && ((SimpleValue) leftSide).isSimpleValue())) {
+            dependencies.add(leftSide);
+        }
         if (leftSide != rightSide && dependencies.contains(rightSide)) {
             return false;
         }
-        dependencies.add(rightSide);
+        if (!((rightSide instanceof SimpleValue) && ((SimpleValue) rightSide).isSimpleValue())) {
+            dependencies.add(rightSide);
+        }
         return leftSide.isConvertedCompileTime(dependencies) && rightSide.isConvertedCompileTime(dependencies);
     }
 
@@ -132,6 +187,12 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         return hash;
     }
 
+    /**
+     * Gets left most item
+     *
+     * @param item Item
+     * @return Left most item
+     */
     public GraphTargetItem getLeftMostItem(GraphTargetItem item) {
         GraphTargetItem ret = item;
         if (ret instanceof BinaryOpItem) {
@@ -140,6 +201,11 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
         return ret;
     }
 
+    /**
+     * Gets left most item
+     *
+     * @return Left most item
+     */
     public GraphTargetItem getLeftMostItem() {
         GraphTargetItem ret = leftSide;
         if (ret instanceof BinaryOpItem) {
@@ -164,6 +230,24 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
             return false;
         }
         return (Objects.equals(operator, other.operator));
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final BinaryOpItem other = (BinaryOpItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(leftSide, other.leftSide)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(rightSide, other.rightSide)) {
+            return false;
+        }
+        return GraphTargetItem.objectsValueEquals(operator, other.operator);
     }
 
     /*@Override
@@ -208,10 +292,13 @@ public abstract class BinaryOpItem extends GraphTargetItem implements BinaryOp {
     }
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(getLeftSide());
-        ret.add(getRightSide());
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(getLeftSide());
+        visitor.visit(getRightSide());
+    }
+
+    @Override
+    public String getOperator() {
+        return operator;
     }
 }

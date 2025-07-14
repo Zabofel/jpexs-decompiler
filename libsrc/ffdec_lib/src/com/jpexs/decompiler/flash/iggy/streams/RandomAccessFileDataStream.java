@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy.streams;
 
 import java.io.EOFException;
@@ -20,10 +21,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
+ * Random access file data stream.
  *
  * @author JPEXS
  */
@@ -85,7 +85,7 @@ public class RandomAccessFileDataStream extends AbstractDataStream {
 
     @Override
     public byte[] readBytes(int numBytes) throws IOException {
-        byte buf[] = new byte[numBytes];
+        byte[] buf = new byte[numBytes];
         raf.readFully(buf);
         return buf;
     }

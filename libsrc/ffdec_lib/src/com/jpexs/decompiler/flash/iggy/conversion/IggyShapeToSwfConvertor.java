@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,27 +12,25 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.iggy.conversion;
 
-import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.iggy.IggyShape;
 import com.jpexs.decompiler.flash.iggy.IggyShapeNode;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
-import com.jpexs.decompiler.flash.types.LINESTYLE;
 import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
-import com.jpexs.decompiler.flash.types.RGB;
 import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.decompiler.flash.types.shaperecords.CurvedEdgeRecord;
 import com.jpexs.decompiler.flash.types.shaperecords.EndShapeRecord;
 import com.jpexs.decompiler.flash.types.shaperecords.SHAPERECORD;
 import com.jpexs.decompiler.flash.types.shaperecords.StraightEdgeRecord;
 import com.jpexs.decompiler.flash.types.shaperecords.StyleChangeRecord;
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Converts Iggy shape to SWF shape.
  *
  * @author JPEXS
  */

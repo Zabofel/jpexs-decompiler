@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,9 +12,11 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.swf5.ActionNewObject;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -22,29 +24,43 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * New object.
  *
  * @author JPEXS
  */
 public class NewObjectActionItem extends ActionItem {
 
+    /**
+     * Object name
+     */
     public GraphTargetItem objectName;
 
+    /**
+     * Arguments
+     */
     public List<GraphTargetItem> arguments;
 
     @Override
-    public List<GraphTargetItem> getAllSubItems() {
-        List<GraphTargetItem> ret = new ArrayList<>();
-        ret.add(objectName);
-        ret.addAll(arguments);
-        return ret;
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(objectName);
+        visitor.visitAll(arguments);
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param objectName Object name
+     * @param arguments Arguments
+     */
     public NewObjectActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem objectName, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.objectName = objectName;
@@ -54,8 +70,8 @@ public class NewObjectActionItem extends ActionItem {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("new ");
-        stripQuotes(objectName, localData, writer);
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.append(IdentifiersDeobfuscation.printIdentifier(false, objectName.toStringNoQuotes(localData)));
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int t = 0; t < arguments.size(); t++) {
             if (t > 0) {
@@ -85,4 +101,60 @@ public class NewObjectActionItem extends ActionItem {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 97 * hash + Objects.hashCode(this.objectName);
+        hash = 97 * hash + Objects.hashCode(this.arguments);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NewObjectActionItem other = (NewObjectActionItem) obj;
+        if (!Objects.equals(this.objectName, other.objectName)) {
+            return false;
+        }
+        if (!Objects.equals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NewObjectActionItem other = (NewObjectActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.objectName, other.objectName)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
 }

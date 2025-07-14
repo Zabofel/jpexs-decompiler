@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.helpers;
 
 import com.jpexs.decompiler.flash.AppResources;
@@ -45,11 +46,13 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,10 +63,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.xml.bind.DatatypeConverter;
 
 /**
- * Class with helper method
+ * Class with helper methods.
  *
  * @author JPEXS, Paolo Cancedda
  */
@@ -128,22 +130,6 @@ public class Helper {
         }
         sb.append("]");
         return sb.toString();
-    }
-
-    /**
-     * Adds zeros to beginning of the number to fill specified length. Returns
-     * as string
-     *
-     * @param number Number as string
-     * @param length Length of new string
-     * @return Number with added zeros
-     */
-    public static String padZeros(String number, int length) {
-        int count = length - number.length();
-        for (int i = 0; i < count; i++) {
-            number = "0" + number;
-        }
-        return number;
     }
 
     /**
@@ -234,6 +220,118 @@ public class Helper {
                 ret.append("\\x").append(byteToHex((byte) c));
             } else {
                 ret.append(c);
+            }
+        }
+
+        return ret.toString();
+    }
+
+    public static String joinEscapePCodeString(String glue, Collection<String> collection) {
+        StringBuilder sb = new StringBuilder();
+        for (String s : collection) {
+            if (sb.length() > 0) {
+                sb.append(glue);
+            }
+            sb.append(escapePCodeString(s));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Escapes string by adding backslashes
+     *
+     * @param s String to escape
+     * @return Escaped string
+     */
+    public static String escapePCodeString(String s) {
+        StringBuilder ret = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\n') {
+                ret.append("\\n");
+            } else if (c == '\r') {
+                ret.append("\\r");
+            } else if (c == '\t') {
+                ret.append("\\t");
+            } else if (c == '\b') {
+                ret.append("\\b");
+            } else if (c == '\f') {
+                ret.append("\\f");
+            } else if (c == '\\') {
+                ret.append("\\\\");
+            } else if (c == '"') {
+                ret.append("\\\"");
+            } else if (c == '\'') {
+                ret.append("\\'");
+            } else if (c < 32) {
+                ret.append("\\x").append(byteToHex((byte) c));
+            } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    ret.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
+                ret.append(c);
+            }
+        }
+
+        return ret.toString();
+    }
+
+    /**
+     * Escapes string by adding backslashes - limits to english characters -
+     * other are unicode escaped.
+     *
+     * @param s String to escape
+     * @return Escaped string
+     */
+    public static String escapePCodeEnglishString(String s) {
+        StringBuilder ret = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\n') {
+                ret.append("\\n");
+            } else if (c == '\r') {
+                ret.append("\\r");
+            } else if (c == '\t') {
+                ret.append("\\t");
+            } else if (c == '\b') {
+                ret.append("\\b");
+            } else if (c == '\f') {
+                ret.append("\\f");
+            } else if (c == '\\') {
+                ret.append("\\\\");
+            } else if (c == '"') {
+                ret.append("\\\"");
+            } else if (c == '\'') {
+                ret.append("\\'");
+            } else if (c < 32) {
+                ret.append("\\x").append(byteToHex((byte) c));
+            } else {
+                int num = 1;
+                for (int j = i + 1; j < s.length(); j++) {
+                    if (s.charAt(j) == c) {
+                        num++;
+                    } else {
+                        break;
+                    }
+                }
+                if (num > Configuration.limitSameChars.get()) {
+                    ret.append("\\{").append(num).append("}");
+                    i += num - 1;
+                }
+                if (c >= 128) {
+                    ret.append(String.format("\\u%04x", (int) c));
+                } else {
+                    ret.append(c);
+                }
             }
         }
 
@@ -383,9 +481,9 @@ public class Helper {
         return sb.toString();
     }
 
-    private final static String SPACES12 = "            ";
+    private static final String SPACES12 = "            ";
 
-    private final static String ZEROS8 = "00000000";
+    private static final String ZEROS8 = "00000000";
 
     public static String formatHex(int value, int width) {
         StringBuilder sb = new StringBuilder();
@@ -473,6 +571,22 @@ public class Helper {
         return parts.length;
     }
 
+    /**
+     * Adds zeros to beginning of the number to fill specified length. Returns
+     * as string
+     *
+     * @param number Number as string
+     * @param length Length of new string
+     * @return Number with added zeros
+     */
+    public static String padZeros(String number, int length) {
+        int count = length - number.length();
+        for (int i = 0; i < count; i++) {
+            number = "0" + number;
+        }
+        return number;
+    }
+
     public static String padZeros(long number, int length) {
         String ret = Long.toString(number);
         while (ret.length() < length) {
@@ -483,49 +597,6 @@ public class Helper {
 
     public static String byteToHex(byte b) {
         return hexStringCache[b & 0xff];
-    }
-
-    public static String byteArrayToHex(byte[] data) {
-        StringBuilder sb = new StringBuilder(data.length * 2);
-        for (byte b : data) {
-            sb.append(hexStringCache[b & 0xff]);
-        }
-
-        return sb.toString();
-    }
-
-    public static String bytesToHexString(byte[] bytes) {
-        return bytesToHexString(bytes, 0);
-    }
-
-    public static String bytesToHexString(byte[] bytes, int start) {
-        StringBuilder sb = new StringBuilder();
-        if (start < bytes.length) {
-            for (int ii = start; ii < bytes.length; ii++) {
-                sb.append(formatHex(bytes[ii] & 0xff, 2));
-                sb.append(' ');
-            }
-            sb.setLength(sb.length() - 1);
-        }
-        return sb.toString();
-    }
-
-    public static String bytesToHexString(int maxByteCountInString, byte[] bytes, int start) {
-        if (bytes.length - start <= maxByteCountInString) {
-            return bytesToHexString(bytes, start);
-        }
-        byte[] trailingBytes = new byte[maxByteCountInString / 2];
-        byte[] headingBytes = new byte[maxByteCountInString - trailingBytes.length];
-        System.arraycopy(bytes, start, headingBytes, 0, headingBytes.length);
-        int startOfTrailingBytes = bytes.length - trailingBytes.length;
-        System.arraycopy(bytes, startOfTrailingBytes, trailingBytes, 0, trailingBytes.length);
-        StringBuilder sb = new StringBuilder();
-        sb.append(bytesToHexString(headingBytes, 0));
-        if (trailingBytes.length > 0) {
-            sb.append(" ... ");
-            sb.append(bytesToHexString(trailingBytes, 0));
-        }
-        return sb.toString();
     }
 
     public static String format(String str, int len) {
@@ -611,7 +682,10 @@ public class Helper {
         } catch (IOException | ClassNotFoundException ex) {
             Logger.getLogger(Helper.class.getName()).log(Level.SEVERE, "Copy error", ex);
             return null;
+        } catch (StackOverflowError se) {
+            throw new StackOverflowError("Stack overflow in deepcopy");
         }
+
     }
 
     public static List<Object> toList(Object... rest) {
@@ -638,6 +712,7 @@ public class Helper {
                 baos.write(d);
             }
         } catch (IOException iex) {
+            //ignored
         }
         return new ByteArrayInputStream(baos.toByteArray());
     }
@@ -713,6 +788,15 @@ public class Helper {
         return baos.toByteArray();
     }
 
+    public static void copyStreamEx(InputStream is, OutputStream os) throws IOException {
+        final int bufSize = 4096;
+        byte[] buf = new byte[bufSize];
+        int cnt = 0;
+        while ((cnt = is.read(buf)) > 0) {
+            os.write(buf, 0, cnt);
+        }
+    }
+
     public static void copyStream(InputStream is, OutputStream os) {
         try {
             final int bufSize = 4096;
@@ -730,15 +814,18 @@ public class Helper {
         try {
             final int bufSize = 4096;
             byte[] buf = new byte[bufSize];
+            int chunkSize = bufSize;
             int cnt = 0;
-            while ((cnt = is.read(buf)) > 0) {
+            while (maxLength > 0) {
+                if (maxLength < bufSize) {
+                    chunkSize = (int) maxLength;
+                }
+                cnt = is.read(buf, 0, chunkSize);
+                if (cnt <= 0) {
+                    break;
+                }
                 os.write(buf, 0, cnt);
                 maxLength -= cnt;
-
-                // last chunk is smaller
-                if (maxLength < bufSize) {
-                    buf = new byte[(int) maxLength];
-                }
             }
         } catch (IOException ex) {
             // ignore
@@ -842,13 +929,15 @@ public class Helper {
             }
         }
 
-        char lastChar = sb.charAt(sb.length() - 1);
-        if (lastChar == ' ') {
-            sb.setLength(sb.length() - 1);
-            sb.append("%20");
-        } else if (lastChar == '.') {
-            sb.setLength(sb.length() - 1);
-            sb.append("%2E");
+        if (sb.length() > 0) {
+            char lastChar = sb.charAt(sb.length() - 1);
+            if (lastChar == ' ') {
+                sb.setLength(sb.length() - 1);
+                sb.append("%20");
+            } else if (lastChar == '.') {
+                sb.setLength(sb.length() - 1);
+                sb.append("%2E");
+            }
         }
 
         str = sb.toString();
@@ -885,10 +974,6 @@ public class Helper {
             try {
                 f.setAccessible(true);
 
-                Field modifiersField = Field.class.getDeclaredField("modifiers");
-                modifiersField.setAccessible(true);
-                modifiersField.setInt(f, f.getModifiers() & ~Modifier.FINAL);
-
                 Object v = f.get(obj);
                 if (v != null) {
                     try {
@@ -907,11 +992,13 @@ public class Helper {
                             }
                         }
                     } catch (Throwable t) {
+                        //ignored
                     }
 
                     f.set(obj, null);
                 }
-            } catch (UnsupportedOperationException | SecurityException | IllegalArgumentException | IllegalAccessException | NoSuchFieldException ex) {
+            } catch (UnsupportedOperationException | SecurityException | IllegalArgumentException
+                    | IllegalAccessException ex) {
                 throw new Error(ex);
             }
         }
@@ -989,6 +1076,49 @@ public class Helper {
     public static GraphTextWriter byteArrayToHexWithHeader(GraphTextWriter writer, byte[] data) {
         writer.appendNoHilight(hexData).newLine().newLine();
         return byteArrayToHex(writer, data, 8, 8, false, false);
+    }
+
+    public static String bytesToHexString(byte[] bytes) {
+        return bytesToHexString(bytes, 0);
+    }
+
+    public static String bytesToHexString(byte[] bytes, int start) {
+        StringBuilder sb = new StringBuilder();
+        if (start < bytes.length) {
+            for (int ii = start; ii < bytes.length; ii++) {
+                sb.append(formatHex(bytes[ii] & 0xff, 2));
+                sb.append(' ');
+            }
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    public static String bytesToHexString(int maxByteCountInString, byte[] bytes, int start) {
+        if (bytes.length - start <= maxByteCountInString) {
+            return bytesToHexString(bytes, start);
+        }
+        byte[] trailingBytes = new byte[maxByteCountInString / 2];
+        byte[] headingBytes = new byte[maxByteCountInString - trailingBytes.length];
+        System.arraycopy(bytes, start, headingBytes, 0, headingBytes.length);
+        int startOfTrailingBytes = bytes.length - trailingBytes.length;
+        System.arraycopy(bytes, startOfTrailingBytes, trailingBytes, 0, trailingBytes.length);
+        StringBuilder sb = new StringBuilder();
+        sb.append(bytesToHexString(headingBytes, 0));
+        if (trailingBytes.length > 0) {
+            sb.append(" ... ");
+            sb.append(bytesToHexString(trailingBytes, 0));
+        }
+        return sb.toString();
+    }
+
+    public static String byteArrayToHex(byte[] data) {
+        StringBuilder sb = new StringBuilder(data.length * 2);
+        for (byte b : data) {
+            sb.append(hexStringCache[b & 0xff]);
+        }
+
+        return sb.toString();
     }
 
     public static GraphTextWriter byteArrayToHex(GraphTextWriter writer, byte[] data, int bytesPerRow, int groupSize, boolean addChars, boolean showAddress) {
@@ -1138,9 +1268,9 @@ public class Helper {
         }
 
         writer.appendNoHilight(" */").newLine();
-        writer.appendNoHilight("throw new Error(\"").
-                appendNoHilight(AppResources.translate("decompilationError.timeout.description")).
-                appendNoHilight("\");").newLine();
+        writer.appendNoHilight("throw new Error(\"")
+                .appendNoHilight(AppResources.translate("decompilationError.timeout.description"))
+                .appendNoHilight("\");").newLine();
     }
 
     public static void appendTimeoutCommentAs3(GraphTextWriter writer, int timeout, int instructionCount) {
@@ -1152,9 +1282,9 @@ public class Helper {
         }
 
         writer.appendNoHilight(" */").newLine();
-        writer.appendNoHilight("throw new flash.errors.IllegalOperationError(\"").
-                appendNoHilight(AppResources.translate("decompilationError.timeout.description")).
-                appendNoHilight("\");").newLine();
+        writer.appendNoHilight("throw new flash.errors.IllegalOperationError(\"")
+                .appendNoHilight(AppResources.translate("decompilationError.timeout.description"))
+                .appendNoHilight("\");").newLine();
     }
 
     public static void appendErrorComment(GraphTextWriter writer, Throwable ex) {
@@ -1164,12 +1294,12 @@ public class Helper {
         if (decompilationErrorAdd != null) {
             writer.appendNoHilight(" * ").appendNoHilight(decompilationErrorAdd).newLine();
         }
-        writer.appendNoHilight(" * ").appendNoHilight(AppResources.translate("decompilationError.errorType")).
-                appendNoHilight(": " + ex.getClass().getSimpleName() + " (" + ex.getMessage() + ")").newLine();
+        writer.appendNoHilight(" * ").appendNoHilight(AppResources.translate("decompilationError.errorType"))
+                .appendNoHilight(": " + ex.getClass().getSimpleName() + " (" + ex.getMessage() + ")").newLine();
         writer.appendNoHilight(" */").newLine();
-        writer.appendNoHilight("throw new flash.errors.IllegalOperationError(\"").
-                appendNoHilight(AppResources.translate("decompilationError.error.description")).
-                appendNoHilight("\");").newLine();
+        writer.appendNoHilight("throw new flash.errors.IllegalOperationError(\"")
+                .appendNoHilight(AppResources.translate("decompilationError.error.description"))
+                .appendNoHilight("\");").newLine();
     }
 
     public static String escapeHTML(String text) {
@@ -1190,6 +1320,111 @@ public class Helper {
         }
 
         return false;
+    }
+
+    public static String escapeXmlExportString(String s) {
+        if (s.matches("^ +$")) {
+            StringBuilder ret = new StringBuilder(s.length());
+            for (int i = 0; i < s.length(); i++) {
+                ret.append("\\u0020");
+            }
+            return ret.toString();
+        }
+
+        StringBuilder ret = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\n') {
+                ret.append("\\n");
+            } else if (c == '\r') {
+                ret.append("\\r");
+            } else if (c == '\t') {
+                ret.append("\\t");
+            } else if (c == '\b') {
+                ret.append("\\b");
+            } else if (c == '\f') {
+                ret.append("\\f");
+            } else if (c == '\\') {
+                ret.append("\\\\");
+            } else if (c < 32) {
+                ret.append("\\u00").append(byteToHex((byte) c));
+            } else if (!isCharacterValidInXml(c)) {
+                ret.append("\\u").append(String.format("%04x", (int) c));
+            } else {
+                ret.append(c);
+            }
+        }
+
+        return ret.toString();
+    }
+
+    public static String unescapeXmlExportString(String st) {
+
+        StringBuilder sb = new StringBuilder(st.length());
+
+        for (int i = 0; i < st.length(); i++) {
+            char ch = st.charAt(i);
+            if (ch == '\\') {
+                char nextChar = (i == st.length() - 1) ? '\\' : st
+                        .charAt(i + 1);
+                // Octal escape?
+                if (nextChar >= '0' && nextChar <= '7') {
+                    String code = "" + nextChar;
+                    i++;
+                    if ((i < st.length() - 1) && st.charAt(i + 1) >= '0'
+                            && st.charAt(i + 1) <= '7') {
+                        code += st.charAt(i + 1);
+                        i++;
+                        if ((i < st.length() - 1) && st.charAt(i + 1) >= '0'
+                                && st.charAt(i + 1) <= '7') {
+                            code += st.charAt(i + 1);
+                            i++;
+                        }
+                    }
+                    sb.append((char) Integer.parseInt(code, 8));
+                    continue;
+                }
+
+                switch (nextChar) {
+                    case '\\':
+                        ch = '\\';
+                        break;
+                    case 'b':
+                        ch = '\b';
+                        break;
+                    case 'f':
+                        ch = '\f';
+                        break;
+                    case 'n':
+                        ch = '\n';
+                        break;
+                    case 'r':
+                        ch = '\r';
+                        break;
+                    case 't':
+                        ch = '\t';
+                        break;
+                    // Hex Unicode: u????
+                    case 'u':
+                        if (i >= st.length() - 5) {
+                            ch = 'u';
+                            break;
+                        }
+                        int code = Integer.parseInt(
+                                "" + st.charAt(i + 2) + st.charAt(i + 3)
+                                + st.charAt(i + 4) + st.charAt(i + 5), 16);
+                        sb.append(Character.toChars(code));
+                        i += 5;
+                        continue;
+                }
+
+                i++;
+            }
+
+            sb.append(ch);
+        }
+
+        return sb.toString();
     }
 
     public static String removeInvalidXMLCharacters(String text) {
@@ -1213,7 +1448,8 @@ public class Helper {
     public static Shape imageToShapeOld(BufferedImage image) {
         Area area = new Area();
         Rectangle rectangle = new Rectangle();
-        int y1, y2;
+        int y1;
+        int y2;
         int width = image.getWidth();
         int height = image.getHeight();
 
@@ -1423,17 +1659,17 @@ public class Helper {
     }
 
     public static String byteArrayToBase64String(byte[] data) {
-        return DatatypeConverter.printBase64Binary(data);
+        return Base64.getEncoder().encodeToString(data);
     }
 
     public static byte[] base64StringToByteArray(String base64) {
-        return DatatypeConverter.parseBase64Binary(base64);
+        return Base64.getDecoder().decode(base64);
     }
 
     /**
      * Formats double value (removes .0 from end)
      *
-     * @param d
+     * @param d Double value
      * @return String
      */
     public static String doubleStr(double d) {
@@ -1504,7 +1740,7 @@ public class Helper {
 
     public static byte[] downloadUrl(String urlString) throws IOException {
         String proxyAddress = Configuration.updateProxyAddress.get();
-        URL url = new URL(urlString);
+        URL url = URI.create(urlString).toURL();
 
         URLConnection uc;
         if (proxyAddress != null && !proxyAddress.isEmpty()) {
@@ -1531,4 +1767,29 @@ public class Helper {
         String text = new String(data, Utf8Helper.charset);
         return text;
     }
+
+    public static int getJavaVersion() {
+        String version = System.getProperty("java.version");
+        if (version.startsWith("1.")) {
+            version = version.substring(2, 3);
+        }
+        int dot = version.indexOf(".");
+        if (dot != -1) {
+            version = version.substring(0, dot);
+        }
+        return Integer.parseInt(version);
+    }
+    
+    public static List<String> splitString(String delimiter, String str) {
+        List<String> result = new ArrayList<>();
+        int start = 0;
+        int end;
+        while ((end = str.indexOf(delimiter, start)) != -1) {
+            result.add(str.substring(start, end));
+            start = end + 1;
+        }
+        result.add(str.substring(start));
+        return result;
+    }
+
 }

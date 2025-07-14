@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,12 +12,14 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.exporters.FontExporter;
+import com.jpexs.decompiler.flash.exporters.GraphicsTextDrawable;
 import com.jpexs.decompiler.flash.exporters.commonshape.ExportRectangle;
 import com.jpexs.decompiler.flash.exporters.commonshape.Matrix;
 import com.jpexs.decompiler.flash.exporters.commonshape.SVGExporter;
@@ -36,6 +38,7 @@ import com.jpexs.decompiler.flash.types.FILLSTYLE;
 import com.jpexs.decompiler.flash.types.FILLSTYLEARRAY;
 import com.jpexs.decompiler.flash.types.GLYPHENTRY;
 import com.jpexs.decompiler.flash.types.LINESTYLE;
+import com.jpexs.decompiler.flash.types.LINESTYLE2;
 import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
 import com.jpexs.decompiler.flash.types.MATRIX;
 import com.jpexs.decompiler.flash.types.RECT;
@@ -70,43 +73,89 @@ import java.util.logging.Logger;
 import org.w3c.dom.Element;
 
 /**
+ * Base class for text tags.
  *
  * @author JPEXS
  */
 public abstract class TextTag extends DrawableTag {
 
+    /**
+     * Constructor.
+     * @param swf SWF
+     * @param id ID
+     * @param name Name
+     * @param data Data
+     */
     public TextTag(SWF swf, int id, String name, ByteArrayRange data) {
         super(swf, id, name, data);
     }
 
+    /**
+     * Gets text matrix.
+     * @return Text matrix
+     */
     public abstract MATRIX getTextMatrix();
 
+    /**
+     * Gets texts.
+     * @return Texts
+     */
     public abstract List<String> getTexts();
 
+    /**
+     * Gets font IDs.
+     * @return Font IDs
+     */
     public abstract List<Integer> getFontIds();
 
+    /**
+     * Gets formatted text.
+     * @param ignoreLetterSpacing Ignore letter spacing
+     * @return Formatted text
+     */
     public abstract HighlightedText getFormattedText(boolean ignoreLetterSpacing);
 
-    // use the texts from the "texts" argument when it is not null
+    /**
+     * Sets formatted text.
+     * Use the texts from the "texts" argument when it is not null.
+     * @param missingCharHandler Missing character handler
+     * @param formattedText Formatted text
+     * @param texts Texts
+     * @return True if the text was set successfully
+     * @throws TextParseException On parse error
+     */
     public abstract boolean setFormattedText(MissingCharacterHandler missingCharHandler, String formattedText, String[] texts) throws TextParseException;
 
-    public abstract void updateTextBounds();
-
-    public abstract boolean alignText(TextAlign textAlign);
-
+    /**
+     * Changes text x position by diff.
+     * @param diff Difference
+     * @return True if the text was moved successfully
+     */
     public abstract boolean translateText(int diff);
 
+    /**
+     * Gets text bounds.
+     * @return Text bounds
+     */
     public abstract RECT getBounds();
 
+    /**
+     * Sets text bounds.
+     * @param r Bounds
+     */
     public abstract void setBounds(RECT r);
-
-    public abstract ExportRectangle calculateTextBounds();
 
     @Override
     public RECT getRect() {
         return getRect(null); // parameter not used
     }
 
+    /**
+     * Updates text bounds.
+     * @param ret Bounds
+     * @param x X
+     * @param y Y
+     */
     private static void updateRect(RECT ret, int x, int y) {
         if (x < ret.Xmin) {
             ret.Xmin = x;
@@ -122,6 +171,19 @@ public abstract class TextTag extends DrawableTag {
         }
     }
 
+    /**
+     * Aligns text.
+     * @param textAlign Text align
+     * @return True if the text was aligned successfully
+     */
+    public abstract boolean alignText(TextAlign textAlign);
+
+    /**
+     * Aligns text.
+     * @param swf SWF
+     * @param textRecords Text records
+     * @param textAlign Text align
+     */
     public static void alignText(SWF swf, List<TEXTRECORD> textRecords, TextAlign textAlign) {
         // Remove Justify align entries
         for (TEXTRECORD tr : textRecords) {
@@ -156,7 +218,7 @@ public abstract class TextTag extends DrawableTag {
 
         for (TEXTRECORD tr : textRecords) {
             if (tr.styleFlagsHasFont) {
-                FontTag font2 = swf.getFont(tr.fontId);
+                FontTag font2 = tr.getFont(swf);
                 if (font2 != null) {
                     font = font2;
                 }
@@ -235,6 +297,12 @@ public abstract class TextTag extends DrawableTag {
         }
     }
 
+    /**
+     * Gets text records attributes.
+     * @param list Text records
+     * @param swf SWF
+     * @return Text records attributes
+     */
     public static Map<String, Object> getTextRecordsAttributes(List<TEXTRECORD> list, SWF swf) {
         Map<String, Object> att = new HashMap<>();
         RECT textBounds = new RECT(Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE);
@@ -261,13 +329,13 @@ public abstract class TextTag extends DrawableTag {
         for (int r = 0; r < list.size(); r++) {
             TEXTRECORD rec = list.get(r);
             if (rec.styleFlagsHasFont) {
-                FontTag font2 = swf.getFont(rec.fontId);
+                FontTag font2 = rec.getFont(swf);
                 if (font2 != null) {
                     font = font2;
                 }
                 textHeight = rec.textHeight;
                 if (font == null) {
-                    Logger.getLogger(TextTag.class.getName()).log(Level.SEVERE, "Font with id=" + rec.fontId + " was not found.");
+                    Logger.getLogger(TextTag.class.getName()).log(Level.SEVERE, "Font with id={0} was not found.", rec.fontId);
                     continue;
                 }
 
@@ -328,7 +396,10 @@ public abstract class TextTag extends DrawableTag {
                 if (e < rec.glyphEntries.size() - 1) {
                     nextEntry = rec.glyphEntries.get(e + 1);
                 }
-                RECT rect = SHAPERECORD.getBounds(glyphs.get(entry.glyphIndex).shapeRecords);
+                LINESTYLEARRAY lsa = new LINESTYLEARRAY();
+                lsa.lineStyles = new LINESTYLE[0];
+                lsa.lineStyles2 = new LINESTYLE2[0];
+                RECT rect = SHAPERECORD.getBounds(glyphs.get(entry.glyphIndex).shapeRecords, lsa, 1, false);
                 rect.Xmax = (int) Math.round(((double) rect.Xmax * textHeight) / (font.getDivider() * 1024));
                 rect.Xmin = (int) Math.round(((double) rect.Xmin * textHeight) / (font.getDivider() * 1024));
                 rect.Ymax = (int) Math.round(((double) rect.Ymax * textHeight) / (font.getDivider() * 1024));
@@ -344,16 +415,21 @@ public abstract class TextTag extends DrawableTag {
                         kerningAdjustment = font.getGlyphKerningAdjustment(entry.glyphIndex, nextEntry.glyphIndex);
                     }
                     defaultAdvance = (int) (Math.round(textHeight * (font.getGlyphAdvance(entry.glyphIndex) + kerningAdjustment) / (1024.0 * font.getDivider())));
+
                 } else {
                     defaultAdvance = (int) Math.round(SWF.unitDivisor * FontTag.getSystemFontAdvance(aFont, font.glyphToChar(entry.glyphIndex), nextEntry == null ? null : font.glyphToChar(nextEntry.glyphIndex)));
                 }
-                int newLetterSpacing = adv - defaultAdvance;
-                if (e == 0 || e == rec.glyphEntries.size() - 1) {
+                if (!font.hasLayout() && !Configuration.flaExportUseMappedFontLayout.get()) {
+                    letterSpacing = 0;
+                } else {
+                    int newLetterSpacing = adv - defaultAdvance;
                     if (rec.glyphEntries.size() == 1) {
                         letterSpacing = 0;
+                    } else if (e == rec.glyphEntries.size() - 1) {
+                        //empty
+                    } else if (newLetterSpacing < letterSpacing) {
+                        letterSpacing = newLetterSpacing;
                     }
-                } else if (newLetterSpacing < letterSpacing) {
-                    letterSpacing = newLetterSpacing;
                 }
                 x += adv;
             }
@@ -368,6 +444,13 @@ public abstract class TextTag extends DrawableTag {
         return att;
     }
 
+    /**
+     * Gets border shape.
+     * @param borderColor Border color
+     * @param fillColor Fill color
+     * @param rect Rectangle
+     * @return Border shape
+     */
     public static SHAPE getBorderShape(RGB borderColor, RGB fillColor, RECT rect) {
         SHAPEWITHSTYLE shape = new SHAPEWITHSTYLE();
         shape.fillStyles = new FILLSTYLEARRAY();
@@ -399,15 +482,23 @@ public abstract class TextTag extends DrawableTag {
         StraightEdgeRecord top = new StraightEdgeRecord();
         top.generalLineFlag = true;
         top.deltaX = rect.getWidth();
+        top.simplify();
+        top.calculateBits();
         StraightEdgeRecord right = new StraightEdgeRecord();
         right.generalLineFlag = true;
         right.deltaY = rect.getHeight();
+        right.simplify();
+        right.calculateBits();
         StraightEdgeRecord bottom = new StraightEdgeRecord();
         bottom.generalLineFlag = true;
         bottom.deltaX = -rect.getWidth();
+        bottom.simplify();
+        bottom.calculateBits();
         StraightEdgeRecord left = new StraightEdgeRecord();
         left.generalLineFlag = true;
         left.deltaY = -rect.getHeight();
+        left.simplify();
+        left.calculateBits();
         shape.shapeRecords.add(top);
         shape.shapeRecords.add(right);
         shape.shapeRecords.add(bottom);
@@ -416,33 +507,85 @@ public abstract class TextTag extends DrawableTag {
         return shape;
     }
 
+    /**
+     * Draws border.
+     * @param swf SWF
+     * @param image Image
+     * @param borderColor Border color
+     * @param fillColor Fill color
+     * @param rect Rectangle
+     * @param textMatrix Text matrix
+     * @param transformation Transformation
+     * @param colorTransform Color transform
+     */
     public static void drawBorder(SWF swf, SerializableImage image, RGB borderColor, RGB fillColor, RECT rect, MATRIX textMatrix, Matrix transformation, ColorTransform colorTransform) {
         Graphics2D g = (Graphics2D) image.getGraphics();
         Matrix mat = transformation.clone();
         mat = mat.concatenate(new Matrix(textMatrix));
-        BitmapExporter.export(swf, getBorderShape(borderColor, fillColor, rect), null, image, mat, mat, colorTransform);
+        BitmapExporter.export(ShapeTag.WIND_EVEN_ODD, 1, swf, getBorderShape(borderColor, fillColor, rect), null, image, 1 /*FIXME??*/, mat, mat, colorTransform, true, false);
     }
 
+    /**
+     * Draws border to HTML canvas.
+     * @param swf SWF
+     * @param result Result
+     * @param borderColor Border color
+     * @param fillColor Fill color
+     * @param rect Rectangle
+     * @param textMatrix Text matrix
+     * @param colorTransform Color transform
+     * @param unitDivisor Unit divisor
+     */
     public static void drawBorderHtmlCanvas(SWF swf, StringBuilder result, RGB borderColor, RGB fillColor, RECT rect, MATRIX textMatrix, ColorTransform colorTransform, double unitDivisor) {
         Matrix mat = new Matrix(textMatrix);
         result.append("\tctx.save();\r\n");
         result.append("\tctx.transform(").append(mat.scaleX).append(",").append(mat.rotateSkew0).append(",").append(mat.rotateSkew1).append(",").append(mat.scaleY).append(",").append(mat.translateX).append(",").append(mat.translateY).append(");\r\n");
         SHAPE shape = getBorderShape(borderColor, fillColor, rect);
-        CanvasShapeExporter cse = new CanvasShapeExporter(null, unitDivisor, swf, shape, colorTransform, 0, 0);
+        CanvasShapeExporter cse = new CanvasShapeExporter(ShapeTag.WIND_EVEN_ODD, 1, null, unitDivisor, swf, shape, colorTransform, 0, 0);
         cse.export();
         result.append(cse.getShapeData());
         result.append("\tctx.restore();\r\n");
     }
 
-    public static void drawBorderSVG(SWF swf, SVGExporter exporter, RGB borderColor, RGB fillColor, RECT rect, MATRIX textMatrix, ColorTransform colorTransform, double zoom) {
+    /**
+     * Draws border to SVG.
+     * @param swf SWF
+     * @param exporter Exporter
+     * @param borderColor Border color
+     * @param fillColor Fill color
+     * @param rect Rectangle
+     * @param textMatrix Text matrix
+     * @param colorTransform Color transform
+     * @param zoom Zoom
+     */
+    public static void drawBorderSVG(SWF swf, SVGExporter exporter, RGB borderColor, RGB fillColor, RECT rect, MATRIX textMatrix, Matrix transformation, ColorTransform colorTransform, double zoom) {
         exporter.createSubGroup(new Matrix(textMatrix), null);
         SHAPE shape = getBorderShape(borderColor, fillColor, rect);
-        SVGShapeExporter shapeExporter = new SVGShapeExporter(swf, shape, 0, exporter, null, colorTransform, zoom);
+        
+        Matrix mat = transformation.clone();
+        mat = mat.concatenate(new Matrix(textMatrix));        
+        //??FIXME
+        SVGShapeExporter shapeExporter = new SVGShapeExporter(ShapeTag.WIND_EVEN_ODD, 1, swf, shape, 0, exporter, null, colorTransform, 1, zoom, mat);
         shapeExporter.export();
         exporter.endGroup();
     }
 
+    /**
+     * Converts static text to image.
+     * @param swf SWF
+     * @param textRecords Text records
+     * @param numText Number of text (DefineText = 1, DefineText2 = 2)
+     * @param image Image
+     * @param textMatrix Text matrix
+     * @param transformation Transformation
+     * @param colorTransform Color transform
+     */
     public static void staticTextToImage(SWF swf, List<TEXTRECORD> textRecords, int numText, SerializableImage image, MATRIX textMatrix, Matrix transformation, ColorTransform colorTransform) {
+        if (image.getGraphics() instanceof GraphicsTextDrawable) {
+            //custom drawing
+            ((GraphicsTextDrawable) image.getGraphics()).drawTextRecords(swf, textRecords, numText, textMatrix, transformation, colorTransform);
+            return;
+        }
         int textColor = 0;
         FontTag font = null;
         int textHeight = 12;
@@ -464,7 +607,7 @@ public abstract class TextTag extends DrawableTag {
                 }
             }
             if (rec.styleFlagsHasFont) {
-                FontTag font2 = swf.getFont(rec.fontId);
+                FontTag font2 = rec.getFont(swf);
                 if (font2 != null) {
                     font = font2;
                 }
@@ -482,7 +625,9 @@ public abstract class TextTag extends DrawableTag {
             double rat = textHeight / 1024.0 / divider;
 
             Matrix matScale = Matrix.getScaleInstance(rat);
-            Color textColor2 = new Color(textColor, true);
+            Color textColor2 = new Color(textColor, true); 
+            Color textColor3 = textColor2;
+            Color noAlphaTextColor = new Color(textColor2.getRed(), textColor2.getGreen(), textColor2.getBlue());
             for (GLYPHENTRY entry : rec.glyphEntries) {
                 matScale.translateX = x;
                 matScale.translateY = y;
@@ -498,18 +643,20 @@ public abstract class TextTag extends DrawableTag {
                         FontTag fnt = swf.getFontByName(dynamicEntry.fontFace);
                         if (fnt != null && entry.glyphIndex != -1) {
                             shape = fnt.getGlyphShapeTable().get(entry.glyphIndex);
+                            textColor3 = textColor2;
                         } else {
                             shape = SHAPERECORD.fontCharacterToSHAPE(new Font(dynamicEntry.fontFace, dynamicEntry.fontStyle, 12), (int) Math.round(divider * 1024), dynamicEntry.character);
+                            textColor3 = noAlphaTextColor;
                         }
                     }
                 }
 
                 if (shape != null) {
-                    BitmapExporter.export(swf, shape, textColor2, image, mat, mat, colorTransform);
+                    BitmapExporter.export(ShapeTag.WIND_EVEN_ODD, 1, swf, shape, textColor3, image, 1 /*FIXME??*/, mat, mat, colorTransform, true, false);
                     if (SHAPERECORD.DRAW_BOUNDING_BOX) {
                         RGB borderColor = new RGBA(Color.black);
                         RGB fillColor = new RGBA(new Color(255, 255, 255, 0));
-                        RECT bounds = shape.getBounds();
+                        RECT bounds = shape.getBounds(1);
                         mat = Matrix.getTranslateInstance(bounds.Xmin, bounds.Ymin).preConcatenate(mat);
                         TextTag.drawBorder(swf, image, borderColor, fillColor, bounds, new MATRIX(), mat, colorTransform);
                     }
@@ -520,6 +667,19 @@ public abstract class TextTag extends DrawableTag {
         }
     }
 
+    /**
+     * Calculates text bounds.
+     * @return Text bounds
+     */
+    public abstract ExportRectangle calculateTextBounds();
+
+    /**
+     * Calculates text bounds.
+     * @param swf SWF
+     * @param textRecords Text records
+     * @param textMatrix Text matrix
+     * @return Text bounds
+     */
     public static ExportRectangle calculateTextBounds(SWF swf, List<TEXTRECORD> textRecords, MATRIX textMatrix) {
         FontTag font = null;
         int textHeight = 12;
@@ -529,7 +689,7 @@ public abstract class TextTag extends DrawableTag {
         ExportRectangle result = null;
         for (TEXTRECORD rec : textRecords) {
             if (rec.styleFlagsHasFont) {
-                font = swf.getFont(rec.fontId);
+                font = rec.getFont(swf);
                 glyphs = font == null ? null : font.getGlyphShapeTable();
                 textHeight = rec.textHeight;
             }
@@ -551,7 +711,7 @@ public abstract class TextTag extends DrawableTag {
                 if (entry.glyphIndex != -1 && glyphs != null) {
                     // shapeNum: 1
                     SHAPE shape = glyphs.get(entry.glyphIndex);
-                    RECT glyphBounds = shape.getBounds();
+                    RECT glyphBounds = shape.getBounds(1);
                     int glyphWidth = glyphBounds.getWidth();
                     int glyphHeight = glyphBounds.getHeight();
                     glyphBounds.Xmin -= glyphWidth / 2;
@@ -577,6 +737,15 @@ public abstract class TextTag extends DrawableTag {
         return result;
     }
 
+    /**
+     * Updates text bounds.
+     */
+    public abstract void updateTextBounds();
+
+    /**
+     * Updates text bounds.
+     * @param textBounds Text bounds
+     */
     protected void updateTextBounds(RECT textBounds) {
         TextImportResizeTextBoundsMode resizeMode = Configuration.textImportResizeTextBoundsMode.get();
         if (resizeMode != null && (resizeMode.equals(TextImportResizeTextBoundsMode.GROW_ONLY) || resizeMode.equals(TextImportResizeTextBoundsMode.GROW_AND_SHRINK))) {
@@ -601,6 +770,17 @@ public abstract class TextTag extends DrawableTag {
         }
     }
 
+    /**
+     * Converts static text to HTML canvas.
+     * @param unitDivisor Unit divisor
+     * @param swf SWF
+     * @param textRecords Text records
+     * @param numText Number of text (DefineText = 1, DefineText2 = 2)
+     * @param result Result
+     * @param bounds Bounds
+     * @param textMatrix Text matrix
+     * @param colorTransform Color transform
+     */
     public static void staticTextToHtmlCanvas(double unitDivisor, SWF swf, List<TEXTRECORD> textRecords, int numText, StringBuilder result, RECT bounds, MATRIX textMatrix, ColorTransform colorTransform) {
         int textColor = 0;
         FontTag font = null;
@@ -623,7 +803,7 @@ public abstract class TextTag extends DrawableTag {
                 }
             }
             if (rec.styleFlagsHasFont) {
-                font = swf.getFont(rec.fontId);
+                font = rec.getFont(swf);
                 fontId = rec.fontId;
                 glyphs = font.getGlyphShapeTable();
                 textHeight = rec.textHeight;
@@ -652,14 +832,34 @@ public abstract class TextTag extends DrawableTag {
         }
     }
 
-    public static void staticTextToSVG(SWF swf, List<TEXTRECORD> textRecords, int numText, SVGExporter exporter, RECT bounds, MATRIX textMatrix, ColorTransform colorTransform, double zoom) {
+    private static String makeValidStyleFontFamily(String family) {
+        family = family.replace("+", "_");
+        family = family.replace("\uFFFD", "_");
+        //this may be incomplete list of incompatibilities
+        return family;
+    }
+    
+    /**
+     * Converts static text to SVG.
+     * @param swf SWF
+     * @param textRecords Text records
+     * @param numText Number of text (DefineText = 1, DefineText2 = 2)
+     * @param exporter Exporter
+     * @param bounds Bounds
+     * @param textMatrix Text matrix
+     * @param colorTransform Color transform
+     * @param zoom Zoom
+     * @param transformation Transformation
+     */
+    public static void staticTextToSVG(SWF swf, List<TEXTRECORD> textRecords, int numText, SVGExporter exporter, RECT bounds, MATRIX textMatrix, ColorTransform colorTransform, double zoom, Matrix transformation) {
         int textColor = 0;
         FontTag font = null;
-        int textHeight = 12;
+        double textHeight = 12;
         int x = 0;
         int y = 0;
         List<SHAPE> glyphs = new ArrayList<>();
-        for (TEXTRECORD rec : textRecords) {
+        for (int r = 0; r < textRecords.size(); r++) {
+            TEXTRECORD rec = textRecords.get(r);
             if (rec.styleFlagsHasColor) {
                 if (numText == 2) {
                     textColor = rec.textColorA.toInt();
@@ -672,7 +872,7 @@ public abstract class TextTag extends DrawableTag {
                 }
             }
             if (rec.styleFlagsHasFont) {
-                font = swf.getFont(rec.fontId);
+                font = rec.getFont(swf);
                 glyphs = font.getGlyphShapeTable();
                 textHeight = rec.textHeight;
             }
@@ -701,14 +901,16 @@ public abstract class TextTag extends DrawableTag {
                     }
                 }
 
-                boolean hasOffset = offsetX != 0 || offsetY != 0;
+                boolean hasOffset = x != 0 || y != 0;
                 if (hasOffset) {
-                    exporter.createSubGroup(Matrix.getTranslateInstance(offsetX, offsetY), null);
+                    exporter.createSubGroup(Matrix.getTranslateInstance(x, y), null);
                 }
+                
+                String fontFamily = makeValidStyleFontFamily(font.getFontNameIntag());
 
                 Element textElement = exporter.createElement("text");
-                textElement.setAttribute("font-size", Double.toString(rat * 1024));
-                textElement.setAttribute("font-family", font.getFontNameIntag());
+                textElement.setAttribute("font-size", Double.toString(textHeight / SWF.unitDivisor));
+                textElement.setAttribute("font-family", fontFamily);
                 textElement.setAttribute("textLength", Double.toString(totalAdvance / SWF.unitDivisor));
                 textElement.setAttribute("lengthAdjust", "spacing");
                 textElement.setTextContent(text.toString());
@@ -721,14 +923,29 @@ public abstract class TextTag extends DrawableTag {
 
                 exporter.addToGroup(textElement);
                 FontExportMode fontExportMode = FontExportMode.WOFF;
-                exporter.addStyle(font.getFontNameIntag(), new FontExporter().exportFont(font, fontExportMode), fontExportMode);
+                exporter.addStyle(fontFamily, new FontExporter().exportFont(font, fontExportMode), fontExportMode);
 
                 if (hasOffset) {
                     exporter.endGroup();
                 }
+
+                for (GLYPHENTRY entry : rec.glyphEntries) {
+                    x += entry.glyphAdvance;
+                }
             } else {
+                Matrix mat0 = transformation.clone();
+                mat0 = mat0.concatenate(new Matrix(textMatrix));
+                Matrix matScale = Matrix.getScaleInstance(rat);
+
+                
                 for (GLYPHENTRY entry : rec.glyphEntries) {
                     Matrix mat = Matrix.getTranslateInstance(x, y).concatenate(Matrix.getScaleInstance(rat));
+                    
+                    
+                    matScale.translateX = x;
+                    matScale.translateY = y;
+                    
+                    Matrix matX = mat0.concatenate(matScale);
                     if (entry.glyphIndex != -1) {
                         // shapeNum: 1
                         SHAPE shape = glyphs.get(entry.glyphIndex);
@@ -749,7 +966,7 @@ public abstract class TextTag extends DrawableTag {
                         if (charId == null) {
                             charId = exporter.getUniqueId(Helper.getValidHtmlId("font_" + font.getFontNameIntag() + "_" + ch));
                             exporter.createDefGroup(null, charId);
-                            SVGShapeExporter shapeExporter = new SVGShapeExporter(swf, shape, 0, exporter, null, colorTransform, zoom);
+                            SVGShapeExporter shapeExporter = new SVGShapeExporter(ShapeTag.WIND_EVEN_ODD, 1, swf, shape, 0, exporter, null, colorTransform, zoom, zoom, matX);
                             shapeExporter.export();
                             if (!exporter.endGroup()) {
                                 charId = "";
@@ -759,7 +976,7 @@ public abstract class TextTag extends DrawableTag {
                         }
 
                         if (!"".equals(charId)) {
-                            Element charImage = exporter.addUse(mat, bounds, charId, null);
+                            Element charImage = exporter.addUse(mat, bounds, charId, null, null);
                             RGBA colorA = new RGBA(textColor);
                             charImage.setAttribute("fill", colorA.toHexRGB());
                             if (colorA.alpha != 255) {
@@ -776,7 +993,7 @@ public abstract class TextTag extends DrawableTag {
     }
 
     @Override
-    public Shape getOutline(int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked) {
+    public Shape getOutline(boolean fast, int frame, int time, int ratio, RenderContext renderContext, Matrix transformation, boolean stroked, ExportRectangle viewRect, double unzoom) {
         RECT r = getBounds();
         Shape shp = new Rectangle.Double(r.Xmin, r.Ymin, r.getWidth(), r.getHeight());
         return transformation.toTransform().createTransformedShape(shp); //TODO: match character shapes (?)

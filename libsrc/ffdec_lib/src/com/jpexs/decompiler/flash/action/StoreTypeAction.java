@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,26 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action;
 
 import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.graph.TranslateStack;
 
 /**
+ * Store type action interface.
  *
  * @author JPEXS
  */
 public interface StoreTypeAction {
 
+    /**
+     * Gets variable name.
+     *
+     * @param stack Stack
+     * @param cpool Constant pool
+     * @return Variable name
+     */
     public String getVariableName(TranslateStack stack, ConstantPool cpool);
 }

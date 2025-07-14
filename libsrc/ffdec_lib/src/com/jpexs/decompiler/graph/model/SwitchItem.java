@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.graph.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -22,7 +23,9 @@ import com.jpexs.decompiler.flash.helpers.NulWriter;
 import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
+import com.jpexs.decompiler.graph.GraphTargetDialect;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.Loop;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
@@ -30,19 +33,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Switch statement.
  *
  * @author JPEXS
  */
 public class SwitchItem extends LoopItem implements Block {
 
+    /**
+     * Switched object
+     */
     public GraphTargetItem switchedObject;
 
+    /**
+     * Case values
+     */
     public List<GraphTargetItem> caseValues;
 
+    /**
+     * Case commands
+     */
     public List<List<GraphTargetItem>> caseCommands;
 
+    /**
+     * Values mapping
+     */
     public List<Integer> valuesMapping;
 
+    /**
+     * Label used
+     */
     private boolean labelUsed;
 
     @Override
@@ -52,8 +71,34 @@ public class SwitchItem extends LoopItem implements Block {
         return ret;
     }
 
-    public SwitchItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, Loop loop, GraphTargetItem switchedObject, List<GraphTargetItem> caseValues, List<List<GraphTargetItem>> caseCommands, List<Integer> valuesMapping) {
-        super(instruction, lineStartIns, loop);
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(switchedObject);
+        visitor.visitAll(caseValues);
+        for (List<GraphTargetItem> c : caseCommands) {
+            visitor.visitAll(c);
+        }
+    }
+
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+        visitor.visit(switchedObject);
+        visitor.visitAll(caseValues);
+    }
+
+    /**
+     * Constructor.
+     * @param dialect Dialect
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param loop Loop
+     * @param switchedObject Switched object
+     * @param caseValues Case values
+     * @param caseCommands Case commands
+     * @param valuesMapping Values mapping
+     */
+    public SwitchItem(GraphTargetDialect dialect, GraphSourceItem instruction, GraphSourceItem lineStartIns, Loop loop, GraphTargetItem switchedObject, List<GraphTargetItem> caseValues, List<List<GraphTargetItem>> caseCommands, List<Integer> valuesMapping) {
+        super(dialect, instruction, lineStartIns, loop);
         this.switchedObject = switchedObject;
         this.caseValues = caseValues;
         this.caseCommands = caseCommands;
@@ -81,6 +126,26 @@ public class SwitchItem extends LoopItem implements Block {
         switchedObject.toString(writer, localData);
         writer.append(")").startBlock();
         for (int i = 0; i < caseCommands.size(); i++) {
+
+            //if last is default and is empty, ignore it
+            if (i == caseCommands.size() - 1) {
+                if (caseCommands.get(i).isEmpty()) {
+                    boolean hasDefault = false;
+                    boolean hasNonDefault = false;
+                    for (int k = 0; k < valuesMapping.size(); k++) {
+                        if (valuesMapping.get(k) == i) {
+                            if (caseValues.get(k) instanceof DefaultItem) {
+                                hasDefault = true;
+                            } else {
+                                hasNonDefault = true;
+                            }
+                        }
+                    }
+                    if (hasDefault && !hasNonDefault) {
+                        continue;
+                    }
+                }
+            }
             for (int k = 0; k < valuesMapping.size(); k++) {
                 if (valuesMapping.get(k) == i) {
                     if (!(caseValues.get(k) instanceof DefaultItem)) {
@@ -136,5 +201,15 @@ public class SwitchItem extends LoopItem implements Block {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public boolean hasBaseBody() {
+        return false;
+    }
+
+    @Override
+    public List<GraphTargetItem> getBaseBodyCommands() {
+        return null;
     }
 }

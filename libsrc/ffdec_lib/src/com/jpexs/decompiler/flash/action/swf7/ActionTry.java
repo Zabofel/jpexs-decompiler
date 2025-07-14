@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,17 +21,15 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
-import com.jpexs.decompiler.flash.action.model.ActionItem;
 import com.jpexs.decompiler.flash.action.model.CastOpActionItem;
 import com.jpexs.decompiler.flash.action.model.DefineLocalActionItem;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
-import com.jpexs.decompiler.flash.action.model.ThrowActionItem;
+import com.jpexs.decompiler.flash.action.model.TemporaryRegister;
 import com.jpexs.decompiler.flash.action.model.clauses.TryActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
 import com.jpexs.decompiler.flash.action.parser.pcode.ASMParsedSymbol;
 import com.jpexs.decompiler.flash.action.parser.pcode.FlasmLexer;
 import com.jpexs.decompiler.flash.action.swf4.RegisterNumber;
-import com.jpexs.decompiler.flash.ecma.Null;
 import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.types.annotations.Reserved;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
@@ -39,6 +37,9 @@ import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemContainer;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.BreakItem;
+import com.jpexs.decompiler.graph.model.ContinueItem;
+import com.jpexs.decompiler.graph.model.ExitItem;
 import com.jpexs.decompiler.graph.model.IfItem;
 import com.jpexs.decompiler.graph.model.PopItem;
 import com.jpexs.decompiler.graph.model.PushItem;
@@ -51,31 +52,62 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Try action - Try block with catch and finally blocks.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 7)
 public class ActionTry extends Action implements GraphSourceItemContainer {
 
+    /**
+     * Reserved
+     */
     @Reserved
     public int reserved;
 
+    /**
+     * Catch in register flag
+     */
     public boolean catchInRegisterFlag;
 
+    /**
+     * Finally block flag
+     */
     public boolean finallyBlockFlag;
 
+    /**
+     * Catch block flag
+     */
     public boolean catchBlockFlag;
 
+    /**
+     * Catch name
+     */
     public String catchName;
 
+    /**
+     * Catch register
+     */
     public int catchRegister;
 
+    /**
+     * Try size
+     */
     long trySize;
 
+    /**
+     * Catch size
+     */
     long catchSize;
 
+    /**
+     * Finally size
+     */
     long finallySize;
 
+    /**
+     * Version
+     */
     private final int version;
 
     @Override
@@ -84,8 +116,22 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         return false;
     }
 
-    public ActionTry(boolean catchInRegisterFlag, boolean finallyBlockFlag, boolean catchBlockFlag, String catchName, int catchRegister, long trySize, long catchSize, long finallySize, int version) {
-        super(0x8F, 0);
+    /**
+     * Constructor.
+     *
+     * @param catchInRegisterFlag Catch in register flag
+     * @param finallyBlockFlag Finally block flag
+     * @param catchBlockFlag Catch block flag
+     * @param catchName Catch name
+     * @param catchRegister Catch register
+     * @param trySize Try size
+     * @param catchSize Catch size
+     * @param finallySize Finally size
+     * @param version Version
+     * @param charset Charset
+     */
+    public ActionTry(boolean catchInRegisterFlag, boolean finallyBlockFlag, boolean catchBlockFlag, String catchName, int catchRegister, long trySize, long catchSize, long finallySize, int version, String charset) {
+        super(0x8F, 0, charset);
         this.catchInRegisterFlag = catchInRegisterFlag;
         this.finallyBlockFlag = finallyBlockFlag;
         this.catchBlockFlag = catchBlockFlag;
@@ -97,8 +143,16 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         this.version = version;
     }
 
+    /**
+     * Constructor.
+     *
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @param version Version
+     * @throws IOException On I/O error
+     */
     public ActionTry(int actionLength, SWFInputStream sis, int version) throws IOException {
-        super(0x8F, actionLength);
+        super(0x8F, actionLength, sis.getCharset());
         long startPos = sis.getPos();
         this.version = version;
         reserved = (int) sis.readUB(5, "reserved");
@@ -146,11 +200,20 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         return res;
     }
 
-    public ActionTry(FlasmLexer lexer, int version) throws IOException, ActionParseException {
-        super(0x8F, 0);
+    /**
+     * Constructor.
+     *
+     * @param lexer Lexer
+     * @param version Version
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionTry(FlasmLexer lexer, int version, String charset) throws IOException, ActionParseException {
+        super(0x8F, 0, charset);
         this.version = version;
 
-        ASMParsedSymbol symb = lexer.yylex();
+        ASMParsedSymbol symb = lexer.lex();
         if (symb.type == ASMParsedSymbol.TYPE_STRING) {
             catchInRegisterFlag = false;
             catchName = (String) symb.value;
@@ -184,7 +247,7 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
         StringBuilder ret = new StringBuilder();
         ret.append("Try ");
         if (catchBlockFlag) {
@@ -204,6 +267,10 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         return getBytesLength();
     }
 
+    /**
+     * Gets the try size
+     * @return Try size
+     */
     public long getTrySize() {
         return trySize;
     }
@@ -237,7 +304,7 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
     @Override
     public boolean parseDivision(long size, FlasmLexer lexer) {
         try {
-            ASMParsedSymbol symb = lexer.yylex();
+            ASMParsedSymbol symb = lexer.lex();
             //catchBlockFlag = false;
             if (symb.type == ASMParsedSymbol.TYPE_INSTRUCTION_NAME) {
                 if (((String) symb.value).toLowerCase().equals("catch")) {
@@ -258,16 +325,17 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
                         return true;
                     } else {
                         //finallyBlockFlag = false;
-                        lexer.yypushback(lexer.yylength());
+                        lexer.pushback(symb);
                     }
                 } else {
                     //finallyBlockFlag = false;
-                    lexer.yypushback(lexer.yylength());
+                    lexer.pushback(symb);
                 }
             } else {
-                lexer.yypushback(lexer.yylength());
+                lexer.pushback(symb);
             }
         } catch (IOException | ActionParseException ex) {
+            //ignored
         }
 
         if (finallyBlockFlag) {
@@ -275,7 +343,6 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         } else if (catchBlockFlag) {
             catchSize = size - getHeaderSize() - trySize;
         }
-        lexer.yybegin(0);
         return false;
     }
 
@@ -290,7 +357,6 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
         if (catchBlockFlag) {
             List<GraphTargetItem> body = contents.get(1);
             if (catchInRegisterFlag) {
-                //catchName = new DirectValueActionItem(this, lineStartItem, -1, new RegisterNumber(this.catchRegister), new ArrayList<>());            
                 if (body.size() >= 2) {
                     int pos = 0;
                     loopex:
@@ -298,53 +364,77 @@ public class ActionTry extends Action implements GraphSourceItemContainer {
                         PushItem pi = (PushItem) body.get(pos);
                         if (pi.value instanceof CastOpActionItem) {
                             CastOpActionItem co = (CastOpActionItem) pi.value;
-                            if ((co.object instanceof DirectValueActionItem) && (((DirectValueActionItem) co.object).value instanceof RegisterNumber)) {
-                                RegisterNumber rn = (RegisterNumber) ((DirectValueActionItem) co.object).value;
-                                if (rn.number == catchRegister) {
+                            if (((co.object instanceof DirectValueActionItem) && (((DirectValueActionItem) co.object).value instanceof RegisterNumber))
+                                    || (co.object instanceof TemporaryRegister)) { //Can be in for in loop
+                                int regNumber;
+
+                                if (co.object instanceof TemporaryRegister) {
+                                    TemporaryRegister tr = (TemporaryRegister) co.object;
+                                    regNumber = tr.getRegId();
+                                } else {
+                                    RegisterNumber rn = (RegisterNumber) ((DirectValueActionItem) co.object).value;
+                                    regNumber = rn.number;
+                                }
+
+                                if (regNumber == catchRegister) {
                                     catchExceptionTypes.add(co.constructor);
                                     if (body.get(pos + 1) instanceof IfItem) {
                                         IfItem ifi = (IfItem) body.get(pos + 1);
-                                        if (!ifi.onTrue.isEmpty()) {
-                                            if (ifi.onTrue.get(0) instanceof DefineLocalActionItem) {
-                                                DefineLocalActionItem dl = (DefineLocalActionItem) ifi.onTrue.get(0);
-                                                catchExceptionNames.add(dl.name);
-                                                List<GraphTargetItem> catchBody = new ArrayList<>(ifi.onTrue);
-                                                catchBody.remove(0);
-                                                catchCommands.add(catchBody);
-                                                if (!ifi.onFalse.isEmpty()) {
-                                                    if (ifi.onFalse.get(0) instanceof PopItem) {
-                                                        pos = 1;
-                                                        body = ifi.onFalse;
-                                                        continue loopex;
-                                                    } else {
-                                                        break;
-                                                    }
+                                        List<GraphTargetItem> onFalse = ifi.onFalse;
+                                        int onFalsePos = 0;
+                                        if (ifi.onFalse.isEmpty() && !ifi.onTrue.isEmpty() && ((ifi.onTrue.get(ifi.onTrue.size() - 1) instanceof ExitItem)
+                                                || (ifi.onTrue.get(ifi.onTrue.size() - 1) instanceof BreakItem)
+                                                || (ifi.onTrue.get(ifi.onTrue.size() - 1) instanceof ContinueItem))) {
+                                            onFalse = body;
+                                            onFalsePos = pos + 2;
+                                        }
+
+                                        if (!ifi.onTrue.isEmpty() && (ifi.onTrue.get(0) instanceof DefineLocalActionItem)) {
+                                            DefineLocalActionItem dl = (DefineLocalActionItem) ifi.onTrue.get(0);
+                                            catchExceptionNames.add(dl.name);
+                                            List<GraphTargetItem> catchBody = new ArrayList<>(ifi.onTrue);
+                                            catchBody.remove(0);
+                                            catchCommands.add(catchBody);
+                                            if (onFalse.size() > onFalsePos) {
+                                                if (onFalse.get(onFalsePos) instanceof PopItem) {
+                                                    pos = onFalsePos + 1;
+                                                    body = onFalse;
+                                                    continue loopex;
                                                 } else {
                                                     break;
                                                 }
-                                                /*if (body.size() == pos + 4) {
-                                                    if (body.get(pos + 2) instanceof PopItem) {
-                                                        if (body.get(pos + 3) instanceof ThrowActionItem) {
-                                                            ThrowActionItem ta = (ThrowActionItem) body.get(pos + 3);
-                                                            if (ta.value instanceof DirectValueActionItem) {
-                                                                if (((DirectValueActionItem) ta.value).value instanceof RegisterNumber) {
-                                                                    RegisterNumber rn2 = (RegisterNumber) ((DirectValueActionItem) ta.value).value;
-                                                                    if (rn2.number == catchRegister) {
-                                                                        break;
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }else{
-                                                    
-                                                }*/
+                                            } else {
+                                                break;
+                                            }
+                                        } else if (onFalse.size() > onFalsePos && (onFalse.get(onFalsePos) instanceof DefineLocalActionItem)) {
+                                            DefineLocalActionItem dl = (DefineLocalActionItem) onFalse.get(onFalsePos);
+                                            catchExceptionNames.add(dl.name);
+
+                                            List<GraphTargetItem> catchBody = new ArrayList<>();
+                                            for (int i = onFalsePos; i < onFalse.size(); i++) {
+                                                catchBody.add(onFalse.get(i));
+                                            }
+                                            catchBody.remove(0);
+                                            catchCommands.add(catchBody);
+                                            if (!ifi.onTrue.isEmpty()) {
+                                                if (ifi.onTrue.get(0) instanceof PopItem) {
+                                                    pos = 1;
+                                                    body = ifi.onTrue;
+                                                    continue loopex;
+                                                }
                                             }
                                         }
                                     }
+                                    break;
+                                } else {
+                                    break;
                                 }
+                            } else {
+                                break;
                             }
 
+                        } else {
+                            break;
                         }
                     }
                     if (body.get(pos) instanceof DefineLocalActionItem) {

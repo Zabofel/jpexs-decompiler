@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -34,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Imports characters from another file, v2
+ * ImportAssets2 tag - Imports characters from another file, v2
  *
  * @author JPEXS
  */
@@ -77,20 +78,21 @@ public class ImportAssets2Tag extends Tag implements ImportTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public ImportAssets2Tag(SWF swf) {
         super(swf, ID, NAME, null);
         url = "";
         tags = new ArrayList<>();
+        names = new ArrayList<>();
     }
 
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public ImportAssets2Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -120,7 +122,7 @@ public class ImportAssets2Tag extends Tag implements ImportTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -152,5 +154,15 @@ public class ImportAssets2Tag extends Tag implements ImportTag {
     @Override
     public String getUrl() {
         return url;
+    }
+    
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        if (names.size() == 1) {
+            ret.put("chid", "" + tags.get(0));
+            ret.put("im", "" + names.get(0));
+        }
+        return ret;
     }
 }

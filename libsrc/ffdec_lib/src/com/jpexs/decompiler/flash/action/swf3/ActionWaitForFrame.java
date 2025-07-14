@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,6 +23,7 @@ import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.ActionGraph;
 import com.jpexs.decompiler.flash.action.ActionList;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
+import com.jpexs.decompiler.flash.action.as2.Trait;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.clauses.IfFrameLoadedActionItem;
 import com.jpexs.decompiler.flash.action.parser.ActionParseException;
@@ -32,24 +33,38 @@ import com.jpexs.decompiler.flash.exporters.modes.ScriptExportMode;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
+import com.jpexs.decompiler.graph.SecondPassException;
 import com.jpexs.decompiler.graph.TranslateStack;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
+ * WaitForFrame action - Waits for a frame to be loaded before continuing.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 3)
 public class ActionWaitForFrame extends Action implements ActionStore {
 
+    /**
+     * Frame number
+     */
     public int frame;
 
+    /**
+     * Skip count
+     */
     public int skipCount;
 
+    /**
+     * Skipped actions
+     */
     public List<Action> skipped;
 
     @Override
@@ -58,8 +73,14 @@ public class ActionWaitForFrame extends Action implements ActionStore {
         return true;
     }
 
+    /**
+     * Constructor
+     * @param actionLength Length of action
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
     public ActionWaitForFrame(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x8A, actionLength);
+        super(0x8A, actionLength, sis.getCharset());
         frame = sis.readUI16("frame");
         skipCount = sis.readUI8("skipCount");
         skipped = new ArrayList<>();
@@ -71,8 +92,8 @@ public class ActionWaitForFrame extends Action implements ActionStore {
     }
 
     @Override
-    public String getASMSource(ActionList container, Set<Long> knownAddreses, ScriptExportMode exportMode) {
-        String ret = "WaitForFrame " + frame + " " + skipCount;
+    public String getASMSource(ActionList container, Set<Long> knownAddresses, ScriptExportMode exportMode) {
+        String ret = "WaitForFrame " + frame + ", " + skipCount;
         return ret;
     }
 
@@ -92,17 +113,37 @@ public class ActionWaitForFrame extends Action implements ActionStore {
         return 3;
     }
 
-    public ActionWaitForFrame(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x8A, -1);
+    /**
+     * Constructor
+     * @param lexer Flasm lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionWaitForFrame(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x8A, -1, charset);
         frame = (int) lexLong(lexer);
+        lexOptionalComma(lexer);
         skipCount = (int) lexLong(lexer);
         skipped = new ArrayList<>();
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) throws InterruptedException {
-        GraphTargetItem frameTi = new DirectValueActionItem(null, null, 0, new Long(frame), new ArrayList<>());
-        List<GraphTargetItem> body = ActionGraph.translateViaGraph(insideDoInitAction, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path);
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) throws InterruptedException {
+        GraphTargetItem frameTi = new DirectValueActionItem(null, null, 0, (Long) ((long) frame), new ArrayList<>());
+        List<GraphTargetItem> body;
+        HashMap<String, GraphTargetItem> variablesBackup = new LinkedHashMap<>(variables);
+        HashMap<String, GraphTargetItem> functionsBackup = new LinkedHashMap<>(functions);
+
+        try {
+            body = ActionGraph.translateViaGraph(uninitializedClassTraits, null, insideDoInitAction, true, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path, getCharset());
+        } catch (SecondPassException spe) {
+            variables.clear();
+            variables.putAll(variablesBackup);
+            functions.clear();
+            functions.putAll(functionsBackup);
+            body = ActionGraph.translateViaGraph(uninitializedClassTraits, spe.getData(), insideDoInitAction, true, regNames, variables, functions, skipped, SWF.DEFAULT_VERSION, staticOperation, path, getCharset());
+        }
         output.add(new IfFrameLoadedActionItem(frameTi, body, this, lineStartAction));
     }
 

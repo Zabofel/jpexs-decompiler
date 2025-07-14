@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.types.shaperecords;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -23,6 +24,9 @@ import com.jpexs.decompiler.flash.helpers.FontHelper;
 import com.jpexs.decompiler.flash.tags.base.NeedsCharacters;
 import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.types.ColorTransform;
+import com.jpexs.decompiler.flash.types.LINESTYLE;
+import com.jpexs.decompiler.flash.types.LINESTYLE2;
+import com.jpexs.decompiler.flash.types.LINESTYLEARRAY;
 import com.jpexs.decompiler.flash.types.MATRIX;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.RGB;
@@ -44,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * Base class for shape records.
  *
  * @author JPEXS
  */
@@ -57,7 +62,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
     public abstract void calculateBits();
 
     @Override
-    public void getNeededCharacters(Set<Integer> needed) {
+    public void getNeededCharacters(Set<Integer> needed, SWF swf) {
     }
 
     @Override
@@ -76,7 +81,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
 
     public abstract void flip();
 
-    public static RECT getBounds(List<SHAPERECORD> records) {
+    public static RECT getBounds(List<SHAPERECORD> records, LINESTYLEARRAY lineStyles, int shapeNum, boolean edgeBounds) {
         int x = 0;
         int y = 0;
         int max_x = 0;
@@ -84,7 +89,29 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
         int min_x = Integer.MAX_VALUE;
         int min_y = Integer.MAX_VALUE;
         boolean started = false;
+        int lineStyle = 0;
+        int lineWidth = 0;
+        int lineWidthHalf = 0;
         for (SHAPERECORD r : records) {
+            if (!edgeBounds && (r instanceof StyleChangeRecord)) {
+                StyleChangeRecord style = (StyleChangeRecord) r;
+                if (style.stateNewStyles) {
+                    lineStyles = style.lineStyles;
+                }
+                if (style.stateLineStyle) {
+                    lineStyle = style.lineStyle;
+                    if (lineStyle == 0) {
+                        lineWidth = 0;
+                    } else {
+                        if (shapeNum <= 3) {
+                            lineWidth = lineStyles.lineStyles[lineStyle - 1].width;
+                        } else {
+                            lineWidth = lineStyles.lineStyles2[lineStyle - 1].width;
+                        }
+                    }
+                    lineWidthHalf = lineWidth / 2;
+                }
+            }
             if (r instanceof CurvedEdgeRecord) {
                 CurvedEdgeRecord curverEdge = (CurvedEdgeRecord) r;
                 int x2 = x + curverEdge.controlDeltaX;
@@ -95,12 +122,29 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                 if (y2 > max_y) {
                     max_y = y2;
                 }
+                if (!edgeBounds) {
+                    if (x2 + lineWidthHalf > max_x) {
+                        max_x = x2 + lineWidthHalf;
+                    }
+                    if (y2 + lineWidthHalf > max_y) {
+                        max_y = y2 + lineWidthHalf;
+                    }
+                }
                 if (started) {
                     if (y2 < min_y) {
                         min_y = y2;
                     }
                     if (x2 < min_x) {
                         min_x = x2;
+                    }
+
+                    if (!edgeBounds) {
+                        if (y2 - lineWidthHalf < min_y) {
+                            min_y = y2 - lineWidthHalf;
+                        }
+                        if (x2 - lineWidthHalf < min_x) {
+                            min_x = x2 - lineWidthHalf;
+                        }
                     }
                 }
             }
@@ -113,6 +157,14 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
             if (y > max_y) {
                 max_y = y;
             }
+            if (!edgeBounds) {
+                if (x + lineWidthHalf > max_x) {
+                    max_x = x + lineWidthHalf;
+                }
+                if (y + lineWidthHalf > max_y) {
+                    max_y = y + lineWidthHalf;
+                }
+            }
             if (r.isMove()) {
                 started = true;
             }
@@ -122,6 +174,15 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                 }
                 if (x < min_x) {
                     min_x = x;
+                }
+
+                if (!edgeBounds) {
+                    if (y - lineWidthHalf < min_y) {
+                        min_y = y - lineWidthHalf;
+                    }
+                    if (x - lineWidthHalf < min_x) {
+                        min_x = x - lineWidthHalf;
+                    }
                 }
             }
         }
@@ -134,10 +195,11 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
         ret.controlDeltaY = ser.deltaY / 2;
         ret.anchorDeltaX = ser.deltaX - ret.controlDeltaX;
         ret.anchorDeltaY = ser.deltaY - ret.controlDeltaY;
+        ret.calculateBits();
         return ret;
     }
 
-    public static void shapeListToImage(SWF swf, List<SHAPE> shapes, SerializableImage image, int frame, Color color, ColorTransform colorTransform) {
+    public static void shapeListToImage(int windingRule, int shapeNum, SWF swf, List<SHAPE> shapes, SerializableImage image, int frame, Color color, ColorTransform colorTransform) {
         if (shapes.isEmpty()) {
             return;
         }
@@ -149,8 +211,11 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
         int maxh = 0;
         int minXMin = 0;
         int minYMin = 0;
+        LINESTYLEARRAY lsa = new LINESTYLEARRAY();
+        lsa.lineStyles = new LINESTYLE[0];
+        lsa.lineStyles2 = new LINESTYLE2[0];
         for (SHAPE s : shapes) {
-            RECT r = SHAPERECORD.getBounds(s.shapeRecords);
+            RECT r = SHAPERECORD.getBounds(s.shapeRecords, lsa, shapeNum, false);
             if (r.Xmax < r.Xmin || r.Ymax < r.Ymin) {
                 continue;
             }
@@ -206,7 +271,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                 // shapeNum: 1
                 SHAPE shape = shapes.get(pos);
                 List<SHAPERECORD> records = shape.shapeRecords;
-                RECT bounds = SHAPERECORD.getBounds(records);
+                RECT bounds = SHAPERECORD.getBounds(records, lsa, shapeNum, false);
 
                 int w1 = bounds.getWidth();
                 int h1 = bounds.getHeight();
@@ -218,7 +283,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
 
                 Matrix transformation = Matrix.getTranslateInstance(px, py);
                 transformation.scale(ratio);
-                BitmapExporter.export(swf, shape, color, image, transformation, transformation, colorTransform);
+                BitmapExporter.export(windingRule, shapeNum, swf, shape, color, image, 1 /*FIXME??*/, transformation, transformation, colorTransform, true, true);
 
                 // draw bounding boxes
                 if (DRAW_BOUNDING_BOX) {
@@ -281,14 +346,9 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                     ser.deltaX = multiplier * (((int) Math.round(points[0])) - lastX);
                     ser.deltaY = multiplier * (((int) Math.round(points[1])) - lastY);
 
-                    ser.generalLineFlag = ser.deltaX != 0 && ser.deltaY != 0;
-                    if (ser.deltaX == 0) {
-                        ser.vertLineFlag = true;
-                    }
-                    ser.numBits = SWFOutputStream.getNeededBitsS(ser.deltaX, ser.deltaY) - 2;
-                    if (ser.numBits < 0) {
-                        ser.numBits = 0;
-                    }
+                    ser.generalLineFlag = true;
+                    ser.simplify();
+                    ser.calculateBits();
                     retList.add(ser);
                     lastX = (int) Math.round(points[0]);
                     lastY = (int) Math.round(points[1]);
@@ -307,10 +367,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                         cer.controlDeltaY = multiplier * (((int) Math.round(quadCoords[i][1])) - lastY);
                         cer.anchorDeltaX = multiplier * (((int) Math.round(quadCoords[i][2])) - ((int) Math.round(quadCoords[i][0])));
                         cer.anchorDeltaY = multiplier * (((int) Math.round(quadCoords[i][3])) - ((int) Math.round(quadCoords[i][1])));
-                        cer.numBits = SWFOutputStream.getNeededBitsS(cer.controlDeltaX, cer.controlDeltaY, cer.anchorDeltaX, cer.anchorDeltaY) - 2;
-                        if (cer.numBits < 0) {
-                            cer.numBits = 0;
-                        }
+                        cer.calculateBits();
                         lastX = (int) Math.round(quadCoords[i][2]);
                         lastY = (int) Math.round(quadCoords[i][3]);
                         retList.add(cer);
@@ -322,10 +379,7 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                     cer.controlDeltaY = multiplier * (((int) Math.round(points[1])) - lastY);
                     cer.anchorDeltaX = multiplier * (((int) Math.round(points[2])) - (int) Math.round(points[0]));
                     cer.anchorDeltaY = multiplier * (((int) Math.round(points[3])) - (int) Math.round(points[1]));
-                    cer.numBits = SWFOutputStream.getNeededBitsS(cer.controlDeltaX, cer.controlDeltaY, cer.anchorDeltaX, cer.anchorDeltaY) - 2;
-                    if (cer.numBits < 0) {
-                        cer.numBits = 0;
-                    }
+                    cer.calculateBits();
                     retList.add(cer);
                     lastX = (int) Math.round(points[2]);
                     lastY = (int) Math.round(points[3]);
@@ -338,10 +392,8 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
                     closeSer.generalLineFlag = true;
                     closeSer.deltaX = multiplier * ((int) Math.round((startX - lastX)));
                     closeSer.deltaY = multiplier * ((int) Math.round((startY - lastY)));
-                    closeSer.numBits = SWFOutputStream.getNeededBitsS(closeSer.deltaX, closeSer.deltaY) - 2;
-                    if (closeSer.numBits < 0) {
-                        closeSer.numBits = 0;
-                    }
+                    closeSer.simplify();
+                    closeSer.calculateBits();
                     retList.add(closeSer);
                     lastX = startX;
                     lastY = startY;
@@ -451,6 +503,8 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
             StraightEdgeRecord ser = (StraightEdgeRecord) c;
             ser.deltaX = (int) (multiplierX * ser.deltaX);
             ser.deltaY = (int) (multiplierY * ser.deltaY);
+            ser.generalLineFlag = true;
+            ser.simplify();
             ser.calculateBits();
         }
 
@@ -481,4 +535,6 @@ public abstract class SHAPERECORD implements Cloneable, NeedsCharacters, Seriali
             throw new RuntimeException();
         }
     }
+
+    public abstract boolean isTooLarge();
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -27,40 +28,77 @@ import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Delete property.
  *
  * @author JPEXS
  */
 public class DeletePropertyAVM2Item extends AVM2Item {
 
+    /**
+     * Object
+     */
     public GraphTargetItem object;
 
+    /**
+     * Property name
+     */
     public GraphTargetItem propertyName;
 
+    /**
+     * Line
+     */
     private int line;
 
-    //Constructor for compiler
+    /**
+     * Is static
+     */
+    public boolean isStatic;
+
+    /**
+     * Constructor.
+     * For compiler.
+     * @param property Property
+     * @param line Line
+     */
     public DeletePropertyAVM2Item(GraphTargetItem property, int line) {
-        this(null, null, property, null);
+        this(null, null, property, null, false);
         this.line = line;
     }
 
-    public DeletePropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName) {
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(object);
+        visitor.visit(propertyName);
+    }
+
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param object Object
+     * @param propertyName Property name
+     * @param isStatic Is static
+     */
+    public DeletePropertyAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem object, GraphTargetItem propertyName, boolean isStatic) {
         super(instruction, lineStartIns, PRECEDENCE_UNARY);
         this.object = object;
         this.propertyName = propertyName;
+        this.isStatic = isStatic;
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         writer.append("delete ");
-        formatProperty(writer, object, propertyName, localData);
+        formatProperty(writer, object, propertyName, localData, isStatic, false);
         return writer;
     }
 
@@ -72,7 +110,7 @@ public class DeletePropertyAVM2Item extends AVM2Item {
         }
         if (p instanceof PropertyAVM2Item) {
             PropertyAVM2Item prop = (PropertyAVM2Item) p;
-            return toSourceMerge(localData, generator, prop.resolveObject(localData, generator),
+            return toSourceMerge(localData, generator, prop.resolveObject(localData, generator, true),
                     ins(AVM2Instructions.DeleteProperty, prop.resolveProperty(localData))
             );
         }
@@ -97,4 +135,34 @@ public class DeletePropertyAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 53 * hash + Objects.hashCode(this.object);
+        hash = 53 * hash + Objects.hashCode(this.propertyName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final DeletePropertyAVM2Item other = (DeletePropertyAVM2Item) obj;
+        if (!Objects.equals(this.object, other.object)) {
+            return false;
+        }
+        if (!Objects.equals(this.propertyName, other.propertyName)) {
+            return false;
+        }
+        return true;
+    }
+
 }

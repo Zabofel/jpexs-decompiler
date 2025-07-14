@@ -4,7 +4,8 @@
     <target depends="compile" name="debug-nb">
         <path id="cp">
             <pathelement path="${basedir}/build/classes"/>
-            <fileset dir="${basedir}/lib" includes="**/*.jar"/>
+            <fileset dir="${basedir}/lib" includes="**/*-fix.jar"/>
+            <fileset dir="${basedir}/lib" includes="**/*.jar" excludes="**/*-fix.jar"/>
         </path>
         <nbjpdastart addressproperty="jpda.address" name="ffdec" transport="dt_socket">
             <classpath refid="cp"/>
@@ -13,7 +14,7 @@
             <classpath refid="cp"/>
             <jvmarg value="-Xdebug"/>
             <jvmarg value="-Xrunjdwp:transport=dt_socket,address=${jpda.address}"/>
-            <jvmarg value="-Xmx8192m"/>
+            <jvmarg value="-Xmx8192m"/>          
             <arg line="${run.params}"/>
         </java>
     </target>
@@ -28,6 +29,7 @@
                     <fileset dir="${lib.dir}" includes="**/*.jar"/>
                 </classpath>
                 <jvmarg line="${agent.jvmargs}" />
+                <arg line="${run.params}" />
             </java>
     </target>
 </project>

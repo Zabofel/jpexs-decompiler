@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -26,17 +27,34 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.LocalData;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Extract a substring from a string.
  *
  * @author JPEXS
  */
 public class StringExtractActionItem extends ActionItem {
 
+    /**
+     * Index
+     */
     public GraphTargetItem index;
 
+    /**
+     * Count
+     */
     public GraphTargetItem count;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param value Value
+     * @param index Index
+     * @param count Count
+     */
     public StringExtractActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem value, GraphTargetItem index, GraphTargetItem count) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY, value);
         this.index = index;
@@ -47,7 +65,7 @@ public class StringExtractActionItem extends ActionItem {
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         value.toString(writer, localData);
         writer.append(".substr");
-        writer.spaceBeforeCallParenthesies(2);
+        writer.spaceBeforeCallParenthesis(2);
         writer.append("(");
         index.toString(writer, localData);
         writer.append(",");
@@ -69,6 +87,14 @@ public class StringExtractActionItem extends ActionItem {
         return getResult(count.getResult(), index.getResult(), value.getResult());
     }
 
+    /**
+     * Get result.
+     *
+     * @param count Count
+     * @param index Index
+     * @param value Value
+     * @return Result
+     */
     public static String getResult(Object count, Object index, Object value) {
         String str = EcmaScript.toString(value);
         int idx = EcmaScript.toInt32(index);
@@ -100,6 +126,62 @@ public class StringExtractActionItem extends ActionItem {
 
     @Override
     public boolean hasReturnValue() {
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 37 * hash + Objects.hashCode(this.index);
+        hash = 37 * hash + Objects.hashCode(this.count);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final StringExtractActionItem other = (StringExtractActionItem) obj;
+        if (!Objects.equals(this.index, other.index)) {
+            return false;
+        }
+        if (!Objects.equals(this.count, other.count)) {
+            return false;
+        }
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean valueEquals(GraphTargetItem obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final StringExtractActionItem other = (StringExtractActionItem) obj;
+        if (!GraphTargetItem.objectsValueEquals(this.index, other.index)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.count, other.count)) {
+            return false;
+        }
+        if (!GraphTargetItem.objectsValueEquals(this.value, other.value)) {
+            return false;
+        }
         return true;
     }
 }

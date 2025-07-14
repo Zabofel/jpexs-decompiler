@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model.clauses;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.abc.avm2.graph.AVM2GraphTargetDialect;
 import com.jpexs.decompiler.flash.abc.avm2.model.InAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.LocalRegAVM2Item;
-import com.jpexs.decompiler.flash.abc.avm2.model.SetTypeAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.parser.script.AVM2SourceGenerator;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.flash.helpers.LoopWithType;
@@ -27,6 +27,7 @@ import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.Loop;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
@@ -37,15 +38,25 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * For in loop.
  *
  * @author JPEXS
  */
 public class ForInAVM2Item extends LoopItem implements Block {
 
+    /**
+     * Expression
+     */
     public InAVM2Item expression;
 
+    /**
+     * Commands
+     */
     public List<GraphTargetItem> commands;
 
+    /**
+     * Label used
+     */
     private boolean labelUsed;
 
     @Override
@@ -57,9 +68,31 @@ public class ForInAVM2Item extends LoopItem implements Block {
         return ret;
     }
 
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(expression);
+        visitor.visitAll(commands);
+    }
+
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+        visitor.visit(expression);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param loop Loop
+     * @param expression Expression
+     * @param commands Commands
+     */
     public ForInAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, Loop loop, InAVM2Item expression, List<GraphTargetItem> commands) {
-        super(instruction, lineStartIns, loop);
-        if (!commands.isEmpty()) {
+        super(AVM2GraphTargetDialect.INSTANCE, instruction, lineStartIns, loop);
+
+        //Commented out - see the comment in ForEachInAVM2Item
+        /*if (!commands.isEmpty()) {
             GraphTargetItem firstAssign = commands.get(0);
             if (firstAssign instanceof SetTypeAVM2Item) {
                 if (expression.object instanceof LocalRegAVM2Item) {
@@ -73,7 +106,7 @@ public class ForInAVM2Item extends LoopItem implements Block {
                 }
                 //locAssign.
             }
-        }
+        }*/
         this.expression = expression;
         this.commands = commands;
     }
@@ -133,5 +166,15 @@ public class ForInAVM2Item extends LoopItem implements Block {
     @Override
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return ((AVM2SourceGenerator) generator).generate(localData, this);
+    }
+
+    @Override
+    public boolean hasBaseBody() {
+        return true;
+    }
+
+    @Override
+    public List<GraphTargetItem> getBaseBodyCommands() {
+        return commands;
     }
 }

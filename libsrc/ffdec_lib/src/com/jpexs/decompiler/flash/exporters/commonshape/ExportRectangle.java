@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.exporters.commonshape;
 
 import com.jpexs.decompiler.flash.types.RECT;
 import java.awt.geom.Rectangle2D;
 
 /**
+ * Export rectangle.
  *
  * @author JPEXS
  */
@@ -44,6 +46,13 @@ public class ExportRectangle {
         this.yMin = rect.Ymin;
         this.xMax = rect.Xmax;
         this.yMax = rect.Ymax;
+    }
+
+    public ExportRectangle(ExportRectangle rect) {
+        this.xMin = rect.xMin;
+        this.yMin = rect.yMin;
+        this.xMax = rect.xMax;
+        this.yMax = rect.yMax;
     }
 
     public ExportRectangle(Rectangle2D rect) {
@@ -96,4 +105,39 @@ public class ExportRectangle {
         return "[ExportRectangle x=" + xMin + ",y=" + yMin + ", w=" + getWidth() + ", h=" + getHeight() + "]";
     }
 
+    public boolean intersects(ExportRectangle rect) {
+        if (xMax < rect.xMin) {
+            return false;
+        }
+        if (yMax < rect.yMin) {
+            return false;
+        }
+        if (xMin > rect.xMax) {
+            return false;
+        }
+        if (yMin > rect.yMax) {
+            return false;
+        }
+        return true; //?
+    }
+
+    public ExportRectangle toPx() {
+        return new ExportRectangle(Math.round(xMin / 20), Math.round(yMin / 20), Math.round(xMax / 20), Math.round(yMax / 20));
+    }
+
+    public Point getUpperLeftPoint() {
+        return new Point(xMin, yMin);
+    }
+
+    public Point getUpperRightPoint() {
+        return new Point(xMax, yMin);
+    }
+
+    public Point getLowerLeftPoint() {
+        return new Point(xMin, yMax);
+    }
+
+    public Point getLowerRightPoint() {
+        return new Point(xMax, yMax);
+    }
 }

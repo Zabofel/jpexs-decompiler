@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,9 +23,11 @@ import com.jpexs.decompiler.flash.helpers.HighlightedTextWriter;
 import com.jpexs.decompiler.flash.tags.DoActionTag;
 import com.jpexs.decompiler.flash.tags.ShowFrameTag;
 import com.jpexs.decompiler.flash.tags.Tag;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.fail;
@@ -45,6 +47,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
         Configuration.simplifyExpressions.set(false);
         Configuration.decompile.set(true);
         Configuration.registerNameFormat.set("_loc%d_");
+        Configuration.autoRenameIdentifiers.set(false);
         swf = new SWF(new BufferedInputStream(new FileInputStream("testdata/as2/as2.swf")), false);
     }
 
@@ -53,10 +56,11 @@ public class ActionScript2Test extends ActionScript2TestBase {
         assertNotNull(doa);
         HighlightedTextWriter writer = new HighlightedTextWriter(new CodeFormatting(), false);
         try {
-            Action.actionsToSource(doa, doa.getActions(), "", writer);
+            Action.actionsToSource(new HashMap<>() /*FIXME*/, doa, doa.getActions(), "", writer, Utf8Helper.charsetName);
         } catch (InterruptedException ex) {
             fail();
         }
+        writer.finishHilights();
         String actualResult = cleanPCode(writer.toString());
         expectedResult = cleanPCode(expectedResult);
         assertEquals(actualResult, expectedResult);
@@ -435,8 +439,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "var c = --i + 5;\r\n"
                 + "trace(\"a:\" + a + \" b:\" + b + \" c:\" + c);\r\n"
                 + "var arr = [1,2,3];\r\n"
-                + "arr[tst()]++;\r\n"
-                + "var d = arr[tst()];\r\n"
+                + "var d = arr[tst()]++;\r\n"
                 + "trace(d);\r\n"
         );
     }
@@ -474,7 +477,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "return undefined;\r\n"
                 + "}\r\n"
-                + "_loc1_ = _loc1_ * 9;\r\n"
+                + "_loc1_ *= 9;\r\n"
                 + "trace(_loc1_);\r\n"
                 + "}\r\n"
                 + "trace(\"function2Test\");\r\n"
@@ -496,10 +499,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw new Error();\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "_loc1_ = 7;\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "catch(e)\r\n"
                 + "{\r\n"
@@ -518,7 +518,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
     public void frame47_ternarTest() {
         compareSrc(47, "trace(\"ternarTest\");\r\n"
                 + "var a = 5;\r\n"
-                + "var b = a != 4?3:2;\r\n"
+                + "var b = a != 4 ? 3 : 2;\r\n"
                 + "trace(b);\r\n"
         );
     }
@@ -555,7 +555,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
         compareSrc(49, "function tst(px)\r\n"
                 + "{\r\n"
                 + "var _loc1_ = 57;\r\n"
-                + "_loc1_ = _loc1_ * 27;\r\n"
+                + "_loc1_ *= 27;\r\n"
                 + "}\r\n"
                 + "trace(\"registersFuncTest\");\r\n"
                 + "tst(5);\r\n"
@@ -603,14 +603,13 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "while(true)\r\n"
                 + "{\r\n"
                 + "a++;\r\n"
-                + "b = b + 2;\r\n"
-                + "if(c < 10)\r\n"
+                + "b += 2;\r\n"
+                + "if(c >= 10)\r\n"
                 + "{\r\n"
+                + "break;\r\n"
+                + "}\r\n"
                 + "trace(c);\r\n"
                 + "c++;\r\n"
-                + "continue;\r\n"
-                + "}\r\n"
-                + "break;\r\n"
                 + "}\r\n"
                 + "trace(\"konec\");\r\n"
         );
@@ -646,16 +645,15 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "var _loc1_ = 5;\r\n"
                 + "while(_loc1_ < 10)\r\n"
                 + "{\r\n"
-                + "if(_loc1_ == 5)\r\n"
+                + "if(_loc1_ != 5)\r\n"
                 + "{\r\n"
+                + "return false;\r\n"
+                + "}\r\n"
                 + "if(_loc1_ == 6)\r\n"
                 + "{\r\n"
                 + "return true;\r\n"
                 + "}\r\n"
                 + "_loc1_ = _loc1_ + 1;\r\n"
-                + "continue;\r\n"
-                + "}\r\n"
-                + "return false;\r\n"
                 + "}\r\n"
                 + "}\r\n"
                 + "trace(\"function4Test\");\r\n"
@@ -677,13 +675,12 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "while(true)\r\n"
                 + "{\r\n"
                 + "k++;\r\n"
-                + "if(k < 10)\r\n"
+                + "if(k >= 10)\r\n"
                 + "{\r\n"
-                + "k = k * 5;\r\n"
-                + "trace(k);\r\n"
-                + "continue;\r\n"
-                + "}\r\n"
                 + "break;\r\n"
+                + "}\r\n"
+                + "k *= 5;\r\n"
+                + "trace(k);\r\n"
                 + "}\r\n"
                 + "trace(\"end\");\r\n"
         );
@@ -708,7 +705,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "}\r\n"
                 + "k++;\r\n"
                 + "}\r\n"
-                + "while(k = k + 5, k < 20);\r\n"
+                + "while(k += 5, k < 20);\r\n"
                 + "trace(\"end\");\r\n"
         );
     }
@@ -956,17 +953,14 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "if(_loc1_ == \"b\")\r\n"
                 + "{\r\n"
                 + "trace(\"hi\");\r\n"
+                + "break;\r\n"
                 + "}\r\n"
-                + "else if(_loc1_ == \"c\")\r\n"
+                + "if(_loc1_ == \"c\")\r\n"
                 + "{\r\n"
                 + "trace(\"hello\");\r\n"
-                + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
-                + "trace(\"hohoho\");\r\n"
-                + "continue;\r\n"
-                + "}\r\n"
                 + "break;\r\n"
+                + "}\r\n"
+                + "trace(\"hohoho\");\r\n"
                 + "}\r\n"
                 + "trace(\"after\");\r\n"
                 + "}\r\n"
@@ -1880,7 +1874,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "var a = 5;\r\n"
                 + "try\r\n"
                 + "{\r\n"
-                + "a = a / 0;\r\n"
+                + "a /= 0;\r\n"
                 + "}\r\n"
                 + "catch(e)\r\n"
                 + "{\r\n"
@@ -1888,7 +1882,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
-                + "a = a / 0;\r\n"
+                + "a /= 0;\r\n"
                 + "}\r\n"
                 + "catch(e)\r\n"
                 + "{\r\n"
@@ -1896,14 +1890,11 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "throw e;\r\n"
                 + "}\r\n"
-                + "else\r\n"
-                + "{\r\n"
                 + "trace(\"err:\" + e);\r\n"
-                + "}\r\n"
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
-                + "a = a / 0;\r\n"
+                + "a /= 0;\r\n"
                 + "}\r\n"
                 + "catch(e:MyError)\r\n"
                 + "{\r\n"
@@ -1911,7 +1902,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
-                + "a = a / 0;\r\n"
+                + "a /= 0;\r\n"
                 + "}\r\n"
                 + "catch(e1:MyError)\r\n"
                 + "{\r\n"
@@ -1923,7 +1914,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "}\r\n"
                 + "try\r\n"
                 + "{\r\n"
-                + "a = a / 0;\r\n"
+                + "a /= 0;\r\n"
                 + "}\r\n"
                 + "catch(e:MyError)\r\n"
                 + "{\r\n"
@@ -1985,7 +1976,7 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "trace(_loc1_);\r\n"
                 + "}\r\n"
-                + "_loc3_.r1 = _loc2_ + 1 + \". \" + (!_loc4_?_loc3_.r2 = v1[_loc2_][0]:\"unk\");\r\n"
+                + "_loc3_.r1 = _loc2_ + 1 + \". \" + (!_loc4_ ? (_loc3_.r2 = v1[_loc2_][0]) : \"unk\");\r\n"
                 + "}\r\n"
                 + "trace(\"chainedAfterForInTest\");\r\n"
                 + "var v1 = {};\r\n"
@@ -1998,9 +1989,10 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "{\r\n"
                 + "var _loc3_ = {};\r\n"
                 + "var _loc2_ = {};\r\n"
+                + "var _loc1_;\r\n"
                 + "for(var _loc4_ in _loc3_)\r\n"
                 + "{\r\n"
-                + "var _loc1_ = _loc2_[_loc4_];\r\n"
+                + "_loc1_ = _loc2_[_loc4_];\r\n"
                 + "switch(_loc1_)\r\n"
                 + "{\r\n"
                 + "case \"A\":\r\n"
@@ -2008,8 +2000,6 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "case \"C\":\r\n"
                 + "trace(\"Ret 5\");\r\n"
                 + "return 5;\r\n"
-                + "default:\r\n"
-                + "continue;\r\n"
                 + "}\r\n"
                 + "}\r\n"
                 + "trace(\"Final\");\r\n"
@@ -2027,6 +2017,502 @@ public class ActionScript2Test extends ActionScript2TestBase {
                 + "delete obj.a;\r\n"
                 + "delete obj[\"salam likum\"];\r\n"
                 + "delete \"bagr aa\";\r\n"
+        );
+    }
+
+    @Test
+    public void frame74_setPropertyTest() {
+        compareSrc(74, "trace(\"setPropertyTest\");\r\n"
+                + "setProperty(\"_root\", _rotation, 45);\r\n"
+                + "_root._rotation = 60;\r\n"
+                + "trace(getProperty(\"_root\", _rotation));\r\n"
+                + "set(\"_root._rotation\",60);\r\n"
+                + "trace(undefined);\r\n"
+        );
+    }
+
+    @Test
+    public void frame75_castOpTest() {
+        compareSrc(75, "trace(\"castOpTest\");\r\n"
+                + "var a = 5;\r\n"
+                + "var b = null;\r\n"
+                + "b = flash.display.BitmapData(a);\r\n"
+                + "b = flash.external.ExternalInterface(a);\r\n"
+                + "b = flash.filters.BevelFilter(a);\r\n"
+                + "b = flash.filters.BitmapFilter(a);\r\n"
+                + "b = flash.filters.BlurFilter(a);\r\n"
+                + "b = flash.filters.ColorMatrixFilter(a);\r\n"
+                + "b = flash.filters.ConvolutionFilter(a);\r\n"
+                + "b = flash.filters.DisplacementMapFilter(a);\r\n"
+                + "b = flash.filters.DropShadowFilter(a);\r\n"
+                + "b = flash.filters.GlowFilter(a);\r\n"
+                + "b = flash.filters.GradientBevelFilter(a);\r\n"
+                + "b = flash.filters.GradientGlowFilter(a);\r\n"
+                + "b = flash.geom.ColorTransform(a);\r\n"
+                + "b = flash.geom.Matrix(a);\r\n"
+                + "b = flash.geom.Point(a);\r\n"
+                + "b = flash.geom.Rectangle(a);\r\n"
+                + "b = flash.geom.Transform(a);\r\n"
+                + "b = flash.net.FileReference(a);\r\n"
+                + "b = flash.net.FileReferenceList(a);\r\n"
+                + "b = flash.text.TextRenderer(a);\r\n"
+                + "b = Accordion(a);\r\n"
+                + "b = Alert(a);\r\n"
+                + "b = Array(a);\r\n"
+                + "b = BevelFilter(a);\r\n"
+                + "b = Binding(a);\r\n"
+                + "b = BitmapData(a);\r\n"
+                + "b = BitmapFilter(a);\r\n"
+                + "b = BlurFilter(a);\r\n"
+                + "b = Boolean(a);\r\n"
+                + "b = Button(a);\r\n"
+                + "b = Camera(a);\r\n"
+                + "b = Color(a);\r\n"
+                + "b = ColorMatrixFilter(a);\r\n"
+                + "b = ColorTransform(a);\r\n"
+                + "b = ComboBox(a);\r\n"
+                + "b = ComponentMixins(a);\r\n"
+                + "b = ContextMenu(a);\r\n"
+                + "b = ContextMenuItem(a);\r\n"
+                + "b = ConvolutionFilter(a);\r\n"
+                + "b = CustomActions(a);\r\n"
+                + "b = CheckBox(a);\r\n"
+                + "b = DataGrid(a);\r\n"
+                + "b = DataHolder(a);\r\n"
+                + "b = DataSet(a);\r\n"
+                + "b = DataType(a);\r\n"
+                + "b = Date(a);\r\n"
+                + "b = DateChooser(a);\r\n"
+                + "b = DateField(a);\r\n"
+                + "b = Delta(a);\r\n"
+                + "b = DeltaItem(a);\r\n"
+                + "b = DeltaPacket(a);\r\n"
+                + "b = DisplacementMapFilter(a);\r\n"
+                + "b = DropShadowFilter(a);\r\n"
+                + "b = EndPoint(a);\r\n"
+                + "b = Error(a);\r\n"
+                + "b = ExternalInterface(a);\r\n"
+                + "b = FileReference(a);\r\n"
+                + "b = FileReferenceList(a);\r\n"
+                + "b = FLVPlayback(a);\r\n"
+                + "b = Form(a);\r\n"
+                + "b = Function(a);\r\n"
+                + "b = GlowFilter(a);\r\n"
+                + "b = GradientBevelFilter(a);\r\n"
+                + "b = GradientGlowFilter(a);\r\n"
+                + "b = System.IME(a);\r\n"
+                + "b = Label(a);\r\n"
+                + "b = List(a);\r\n"
+                + "b = Loader(a);\r\n"
+                + "b = LoadVars(a);\r\n"
+                + "b = LocalConnection(a);\r\n"
+                + "b = Log(a);\r\n"
+                + "b = Matrix(a);\r\n"
+                + "b = MediaController(a);\r\n"
+                + "b = MediaDisplay(a);\r\n"
+                + "b = MediaPlayback(a);\r\n"
+                + "b = Menu(a);\r\n"
+                + "b = MenuBar(a);\r\n"
+                + "b = Microphone(a);\r\n"
+                + "b = MovieClip(a);\r\n"
+                + "b = MovieClipLoader(a);\r\n"
+                + "b = NetConnection(a);\r\n"
+                + "b = NetStream(a);\r\n"
+                + "b = Number(a);\r\n"
+                + "b = NumericStepper(a);\r\n"
+                + "b = Object(a);\r\n"
+                + "b = PendingCall(a);\r\n"
+                + "b = Point(a);\r\n"
+                + "b = PopUpManager(a);\r\n"
+                + "b = PrintJob(a);\r\n"
+                + "b = ProgressBar(a);\r\n"
+                + "b = RadioButton(a);\r\n"
+                + "b = RadioButtonGroup(a);\r\n"
+                + "b = RDBMSResolver(a);\r\n"
+                + "b = Rectangle(a);\r\n"
+                + "b = ScrollPane(a);\r\n"
+                + "b = System.security(a);\r\n"
+                + "b = SharedObject(a);\r\n"
+                + "b = Slide(a);\r\n"
+                + "b = SOAPCall(a);\r\n"
+                + "b = Sound(a);\r\n"
+                + "b = String(a);\r\n"
+                + "b = TextArea(a);\r\n"
+                + "b = TextField(a);\r\n"
+                + "b = TextFormat(a);\r\n"
+                + "b = TextInput(a);\r\n"
+                + "b = TextRenderer(a);\r\n"
+                + "b = TextSnapshot(a);\r\n"
+                + "b = Transform(a);\r\n"
+                + "b = Tree(a);\r\n"
+                + "b = TypedValue(a);\r\n"
+                + "b = UIScrollBar(a);\r\n"
+                + "b = Void(a);\r\n"
+                + "b = WebService(a);\r\n"
+                + "b = WebServiceConnector(a);\r\n"
+                + "b = Window(a);\r\n"
+                + "b = XML(a);\r\n"
+                + "b = XMLConnector(a);\r\n"
+                + "b = XMLNode(a);\r\n"
+                + "b = XMLSocket(a);\r\n"
+                + "b = XMLUI(a);\r\n"
+                + "b = XUpdateResolver(a);\r\n"
+        );
+    }
+
+    @Test
+    public void frame76_compoundAssignmentsTest() {
+        compareSrc(76, "function f()\r\n"
+                + "{\r\n"
+                + "trace(arguments[0]);\r\n"
+                + "var _loc2_ = 0;\r\n"
+                + "_loc2_ += 20;\r\n"
+                + "var _loc3_ = _loc2_ += 20;\r\n"
+                + "}\r\n"
+                + "trace(\"compoundAssignmentsTest\");\r\n"
+                + "var a = 0;\r\n"
+                + "a += 5;\r\n"
+                + "var x = a += 5;\r\n"
+                + "a.b.c += 10;\r\n"
+                + "x = a.b.c += 10;\r\n"
+                + "f(5);\r\n"
+                + "trace(a.b.c += 30);\r\n"
+        );
+    }
+
+    @Test
+    public void frame77_Test() {
+        compareSrc(77, "var as = 5;\r\n"
+                + "var abstract = 6;\r\n"
+                + "var Boolean = 7;\r\n"
+                + "var bytes = 8;\r\n"
+                + "var char = 9;\r\n"
+                + "var const = 10;\r\n"
+                + "var debugger = 11;\r\n"
+                + "var double = 12;\r\n"
+                + "var enum = 13;\r\n"
+                + "var export = 14;\r\n"
+                + "var final = 15;\r\n"
+                + "var float = 16;\r\n"
+                + "var goto = 17;\r\n"
+                + "var is = 18;\r\n"
+                + "var long = 19;\r\n"
+                + "var namespace = 20;\r\n"
+                + "var native = 21;\r\n"
+                + "var package = 22;\r\n"
+                + "var protected = 23;\r\n"
+                + "var short = 24;\r\n"
+                + "var synchronized = 25;\r\n"
+                + "var throws = 26;\r\n"
+                + "var transient = 27;\r\n"
+                + "var use = 28;\r\n"
+                + "var volatile = 29;\r\n"
+                + "var false = 43;\r\n"
+                + "var get = 48;\r\n"
+                + "var null = 62;\r\n"
+                + "var set = 69;\r\n"
+                + "var undefined = 76;\r\n"
+                + "var true = 81;\r\n"
+                + "var false = 82;\r\n"
+                + "var NaN = 83;\r\n"
+                + "var newline = 84;\r\n"
+                + "var Infinity = 85;\r\n"
+                + "var each = 86;\r\n"
+        );
+    }
+
+    @Test
+    public void frame78_tellTargetTest() {
+        compareSrc(78, "trace(\"tellTargetTest\");\r\n"
+                + "tellTarget(root.something)\r\n"
+                + "{\r\n"
+                + "trace(\"A\");\r\n"
+                + "var event1 = function()\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "tellTarget(root.bagr)\r\n"
+                + "{\r\n"
+                + "trace(\"C\");\r\n"
+                + "}\r\n"
+                + "trace(\"D\");\r\n"
+                + "};\r\n"
+                + "}\r\n"
+                + "trace(\"E\");\r\n"
+                + "tellTarget(root.somethingA)\r\n"
+                + "{\r\n"
+                + "trace(\"F\");\r\n"
+                + "tellTarget(root.somethingB)\r\n"
+                + "{\r\n"
+                + "trace(\"G\");\r\n"
+                + "}\r\n"
+                + "trace(\"H\");\r\n"
+                + "}\r\n"
+                + "trace(\"I\");\r\n"
+                + "tellTarget(root.somethingC)\r\n"
+                + "{\r\n"
+                + "trace(\"J\");\r\n"
+                + "}\r\n"
+                + "trace(\"K\");\r\n"
+                + "tellTarget(root.somethingD)\r\n"
+                + "{\r\n"
+                + "trace(\"L\");\r\n"
+                + "tellTarget(root.somethingE)\r\n"
+                + "{\r\n"
+                + "trace(\"M\");\r\n"
+                + "tellTarget(root.somethingF)\r\n"
+                + "{\r\n"
+                + "trace(\"N\");\r\n"
+                + "}\r\n"
+                + "trace(\"O\");\r\n"
+                + "}\r\n"
+                + "trace(\"P\");\r\n"
+                + "}\r\n"
+                + "trace(\"Q\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame79_registersVsDefineLocalTest() {
+        compareSrc(79, "function x1(c)\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 1;\r\n"
+                + "var _loc1_ = 2;\r\n"
+                + "return _loc2_ + _loc1_ * c;\r\n"
+                + "}\r\n"
+                + "function x2(c)\r\n"
+                + "{\r\n"
+                + "var a0 = 1;\r\n"
+                + "var a1 = 2;\r\n"
+                + "var r = Math.floor(Math.random() * 2);\r\n"
+                + "return eval(\"a\" + r) + b * c;\r\n"
+                + "}\r\n"
+                + "function x3(c)\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 1;\r\n"
+                + "var _loc3_ = 2;\r\n"
+                + "var _loc1_ = Math.floor(Math.random() * 2);\r\n"
+                + "set(\"a\" + _loc1_,12);\r\n"
+                + "return _loc2_ + b * c;\r\n"
+                + "}\r\n"
+                + "trace(\"registersVsDefineLocalTest\");\r\n"
+                + "trace(x1(2) + x2(3) + x3(4));\r\n"
+        );
+    }
+
+    @Test
+    public void frame80_deleteEvalTest() {
+        compareSrc(80, "trace(\"deleteEvalTest\");\r\n"
+                + "var k0 = 1;\r\n"
+                + "var k1 = 2;\r\n"
+                + "var r = Math.floor(Math.random() * 2);\r\n"
+                + "trace(eval(\"k\" + r));\r\n"
+                + "delete (\"k\" + r);\r\n"
+                + "trace(eval(\"k\" + r));\r\n"
+        );
+    }
+
+    @Test
+    public void frame81_globalFuncAsVarTest() {
+        compareSrc(81, "function t(x)\r\n"
+                + "{\r\n"
+                + "trace(x);\r\n"
+                + "}\r\n"
+                + "trace(\"globalFuncAsVarTest\");\r\n"
+                + "var trace = 5;\r\n"
+                + "trace = t;\r\n"
+        );
+    }
+
+    @Test
+    public void frame82_switchAndTest() {
+        compareSrc(82, "trace(\"switchAndTest\");\r\n"
+                + "var a = 5;\r\n"
+                + "var b = 3;\r\n"
+                + "switch(true)\r\n"
+                + "{\r\n"
+                + "case a >= 0 && a <= 3:\r\n"
+                + "trace(\"a 0-3\");\r\n"
+                + "break;\r\n"
+                + "case a >= 4 && a <= 6:\r\n"
+                + "trace(\"a 4-6\");\r\n"
+                + "case a >= 7 && a <= 10:\r\n"
+                + "trace(\"a 7-10\");\r\n"
+                + "break;\r\n"
+                + "case a >= 11 && a <= 20:\r\n"
+                + "trace(\"a 11-20\");\r\n"
+                + "break;\r\n"
+                + "case a != 0 ? b < 5 : b > 5:\r\n"
+                + "trace(\"a 0, b xx\");\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame83_ifframeLoaded2Test() {
+        compareSrc(83, "trace(\"ifframeLoaded2Test\");\r\n"
+                + "trace(\"A\");\r\n"
+                + "ifFrameLoaded(9)\r\n"
+                + "{\r\n"
+                + "var d = 5;\r\n"
+                + "if(d == 4)\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "}\r\n"
+                + "else\r\n"
+                + "{\r\n"
+                + "trace(\"C\");\r\n"
+                + "}\r\n"
+                + "trace(\"D\");\r\n"
+                + "}\r\n"
+                + "trace(\"E\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame84_withTest() {
+        compareSrc(84, "trace(\"withTest\");\r\n"
+                + "trace(\"before\");\r\n"
+                + "with(_root.something)\r\n"
+                + "{\r\n"
+                + "somesub = 5;\r\n"
+                + "with(subvar)\r\n"
+                + "{\r\n"
+                + "somesub2 = 4;\r\n"
+                + "}\r\n"
+                + "trace(\"after1\");\r\n"
+                + "}\r\n"
+                + "trace(\"after\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame85_numbersCallTest() {
+        compareSrc(85, "trace(\"numbersCallTest\");\r\n"
+                + "var a = (5).toString();\r\n"
+                + "var b = 5.2.toString();\r\n"
+        );
+    }
+
+    @Test
+    public void frame86_tryInsideForInTest() {
+        compareSrc(86, "trace(\"tryInsideForInTest\");\r\n"
+                + "var obj = {};\r\n"
+                + "for(var thing in obj)\r\n"
+                + "{\r\n"
+                + "try\r\n"
+                + "{\r\n"
+                + "trace(\"a\");\r\n"
+                + "}\r\n"
+                + "catch(error:Object)\r\n"
+                + "{\r\n"
+                + "}\r\n"
+                + "}\r\n"
+        );
+    }
+
+    @Test
+    public void frame87_callRegisterTest() {
+        compareSrc(87, "function tst(o)\r\n"
+                + "{\r\n"
+                + "var _loc1_ = \"a\";\r\n"
+                + "o[_loc1_]();\r\n"
+                + "}\r\n"
+                + "trace(\"callRegisterTest\");\r\n"
+                + "var f = function()\r\n"
+                + "{\r\n"
+                + "trace(\"A\");\r\n"
+                + "};\r\n"
+                + "var g = function()\r\n"
+                + "{\r\n"
+                + "trace(\"B\");\r\n"
+                + "};\r\n"
+                + "var obj = {a:f,b:g};\r\n"
+                + "tst(obj);\r\n"
+        );
+    }
+
+    @Test
+    public void frame88_switchForInTest() {
+        compareSrc(88, "trace(\"switchForInTest\");\r\n"
+                + "var t = 5;\r\n"
+                + "var a = [\"x\",\"y\",\"z\"];\r\n"
+                + "switch(t)\r\n"
+                + "{\r\n"
+                + "case 0:\r\n"
+                + "trace(\"A\");\r\n"
+                + "break;\r\n"
+                + "case 1:\r\n"
+                + "trace(\"B\");\r\n"
+                + "break;\r\n"
+                + "case 2:\r\n"
+                + "for(var k in a)\r\n"
+                + "{\r\n"
+                + "trace(k);\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"finish\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame89_functionPostIncrementTest() {
+        compareSrc(89, "function myFunc()\r\n"
+                + "{\r\n"
+                + "var _loc2_ = 0;\r\n"
+                + "var _loc1_ = {};\r\n"
+                + "var _loc4_ = _loc1_[_loc2_++];\r\n"
+                + "var _loc3_ = _loc1_[_loc2_--];\r\n"
+                + "}\r\n"
+                + "trace(\"functionPostIncrementTest\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame90_bitwiseOperandsTest() {
+        compareSrc(90, "trace(\"bitwiseOperandsTest\");\r\n"
+                + "var a = 100;\r\n"
+                + "var b = a & 0x08FF;\r\n"
+                + "var c = 0x08FF & a;\r\n"
+                + "var d = a | 0x0480;\r\n"
+                + "var e = 0x0480 | a;\r\n"
+                + "var f = a ^ 0x0641;\r\n"
+                + "var g = 0x0641 ^ a;\r\n"
+        );
+    }
+
+    @Test
+    public void frame91_dynamicGetUrlTest() {
+        compareSrc(91, "trace(\"dynamicGetUrlTest\");\r\n"
+                + "var n = 5;\r\n"
+                + "unloadMovieNum(n);\r\n"
+                + "printNum(n,\"bmax\");\r\n"
+                + "printAsBitmapNum(n,\"bmax\");\r\n"
+                + "loadMovieNum(\"something.swf\",n,\"POST\");\r\n"
+                + "var v = _root.something;\r\n"
+                + "print(v,\"bmax\");\r\n"
+                + "printAsBitmap(v,\"bmax\");\r\n"
+                + "var r = 5;\r\n"
+                + "getURL(\"file\" + r + \".swf\",\"_blank\",\"POST\");\r\n"
+                + "fscommand(\"test\" + r,\"xx\");\r\n"
+        );
+    }
+
+    @Test
+    public void frame92_Test() {
+        compareSrc(92, "function f(tst)\r\n"
+                + "{\r\n"
+                + "var _loc1_;\r\n"
+                + "if(tst)\r\n"
+                + "{\r\n"
+                + "_loc1_ = 1;\r\n"
+                + "}\r\n"
+                + "else\r\n"
+                + "{\r\n"
+                + "_loc1_ = 2;\r\n"
+                + "}\r\n"
+                + "}\r\n"
+                + "trace(\"testVarDefineInFunc\");\r\n"
+                + "f(tst);\r\n"
         );
     }
 }

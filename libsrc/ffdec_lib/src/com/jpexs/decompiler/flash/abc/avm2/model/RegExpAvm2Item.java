@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -37,19 +38,34 @@ import com.jpexs.decompiler.graph.model.LocalData;
 import com.jpexs.helpers.Helper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Regular expression.
  *
  * @author JPEXS
  */
 public class RegExpAvm2Item extends AVM2Item implements Callable {
 
+    /**
+     * Pattern
+     */
     public String pattern;
 
+    /**
+     * Modifier
+     */
     public String modifier;
 
+    /**
+     * Constructor.
+     * @param pattern Pattern
+     * @param modifier Modifier
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     */
     public RegExpAvm2Item(String pattern, String modifier, GraphSourceItem instruction, GraphSourceItem lineStartIns) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.pattern = pattern;
@@ -61,11 +77,27 @@ public class RegExpAvm2Item extends AVM2Item implements Callable {
         return true;
     }
 
+    /**
+     * Escapes regular expression string.
+     * @param s String
+     * @return Escaped string
+     */
     public static String escapeRegExpString(String s) {
         StringBuilder ret = new StringBuilder(s.length());
+        boolean escape = false;
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            if (c == '\n') {
+            if (c == '/') {
+                if (!escape) {
+                    //not escaped / char, returning null
+                    return null;
+                }
+                ret.append("/");
+            } else if (c == '\\') {
+                ret.append("\\");
+                escape = true;
+                continue;
+            } else if (c == '\n') {
                 ret.append("\\n");
             } else if (c == '\r') {
                 ret.append("\\r");
@@ -80,6 +112,7 @@ public class RegExpAvm2Item extends AVM2Item implements Callable {
             } else {
                 ret.append(c);
             }
+            escape = false;
         }
 
         return ret.toString();
@@ -88,19 +121,23 @@ public class RegExpAvm2Item extends AVM2Item implements Callable {
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
         if (Configuration.useRegExprLiteral.get()) {
-            writer.append("/");
-            writer.append(escapeRegExpString(pattern));
-            writer.append("/");
-            writer.append(modifier);
-        } else {
-            writer.append("new RegExp(");
-            writer.append("\"" + Helper.escapeActionScriptString(pattern) + "\"");
-            if (!(modifier == null || modifier.isEmpty())) {
-                writer.append(",");
-                writer.append("\"" + modifier + "\"");
+            String escaped = escapeRegExpString(pattern);
+            if (escaped != null) {
+                writer.append("/");
+                writer.append(escaped);
+                writer.append("/");
+                writer.append(modifier);
+                return writer;
             }
-            writer.append(")");
         }
+
+        writer.append("new RegExp(");
+        writer.append("\"" + Helper.escapeActionScriptString(pattern) + "\"");
+        if (!(modifier == null || modifier.isEmpty())) {
+            writer.append(",");
+            writer.append("\"" + modifier + "\"");
+        }
+        writer.append(")");
         return writer;
     }
 
@@ -181,4 +218,34 @@ public class RegExpAvm2Item extends AVM2Item implements Callable {
     public Object call(List<Object> args) {
         return call("exec", args);
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 89 * hash + Objects.hashCode(this.pattern);
+        hash = 89 * hash + Objects.hashCode(this.modifier);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final RegExpAvm2Item other = (RegExpAvm2Item) obj;
+        if (!Objects.equals(this.pattern, other.pattern)) {
+            return false;
+        }
+        if (!Objects.equals(this.modifier, other.modifier)) {
+            return false;
+        }
+        return true;
+    }
+
 }

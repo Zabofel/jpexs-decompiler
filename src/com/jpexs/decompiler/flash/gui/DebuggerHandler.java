@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,16 +24,14 @@ import com.jpexs.debugger.flash.DebuggerConnection;
 import com.jpexs.debugger.flash.Variable;
 import com.jpexs.debugger.flash.VariableFlags;
 import com.jpexs.debugger.flash.VariableType;
-import com.jpexs.debugger.flash.messages.in.InAskBreakpoints;
 import com.jpexs.debugger.flash.messages.in.InBreakAt;
 import com.jpexs.debugger.flash.messages.in.InBreakAtExt;
 import com.jpexs.debugger.flash.messages.in.InBreakReason;
 import com.jpexs.debugger.flash.messages.in.InCallFunction;
 import com.jpexs.debugger.flash.messages.in.InConstantPool;
 import com.jpexs.debugger.flash.messages.in.InContinue;
+import com.jpexs.debugger.flash.messages.in.InErrorException;
 import com.jpexs.debugger.flash.messages.in.InFrame;
-import com.jpexs.debugger.flash.messages.in.InGetSwd;
-import com.jpexs.debugger.flash.messages.in.InGetSwf;
 import com.jpexs.debugger.flash.messages.in.InGetVariable;
 import com.jpexs.debugger.flash.messages.in.InNumScript;
 import com.jpexs.debugger.flash.messages.in.InProcessTag;
@@ -44,29 +42,29 @@ import com.jpexs.debugger.flash.messages.in.InTrace;
 import com.jpexs.debugger.flash.messages.in.InVersion;
 import com.jpexs.debugger.flash.messages.out.OutAddWatch2;
 import com.jpexs.debugger.flash.messages.out.OutGetBreakReason;
-import com.jpexs.debugger.flash.messages.out.OutGetSwd;
-import com.jpexs.debugger.flash.messages.out.OutGetSwf;
 import com.jpexs.debugger.flash.messages.out.OutPlay;
 import com.jpexs.debugger.flash.messages.out.OutProcessedTag;
 import com.jpexs.debugger.flash.messages.out.OutRewind;
 import com.jpexs.debugger.flash.messages.out.OutSwfInfo;
+import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.graph.DottedChain;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.logging.ConsoleHandler;
+import java.util.WeakHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- *
  * @author JPEXS
  */
 public class DebuggerHandler implements DebugConnectionListener {
@@ -75,13 +73,17 @@ public class DebuggerHandler implements DebugConnectionListener {
 
     private DebuggerCommands commands = null;
 
-    private List<InSwfInfo.SwfInfo> swfs = new ArrayList<>();
-
+    //private List<InSwfInfo.SwfInfo> swfs = new ArrayList<>();
     private boolean paused = true;
 
     private Map<Integer, String> modulePaths = new HashMap<>();
 
     private Map<Integer, Integer> moduleToSwfIndex = new HashMap<>();
+
+    //Marks swfIndices that are fully loaded - at least one break was on it (including onloaded break)
+    private Set<Integer> swfIndicesCommitted = new HashSet<>();
+
+    private Map<Integer, String> swfIndicesNewToSwfHash = new HashMap<>();
 
     private Map<String, Integer> scriptToModule = new HashMap<>();
 
@@ -91,17 +93,23 @@ public class DebuggerHandler implements DebugConnectionListener {
 
     private Map<Integer, Integer> moduleToMethodIndex = new HashMap<>();
 
-    private Map<String, Set<Integer>> toAddBPointMap = new HashMap<>();
+    private Map<SWF, Map<String, Set<Integer>>> toAddBPointMap = new WeakHashMap<>();
 
-    private Map<String, Set<Integer>> confirmedPointMap = new HashMap<>();
+    private Map<SWF, Map<String, Set<Integer>>> confirmedPointMap = new WeakHashMap<>();
 
-    private Map<String, Set<Integer>> invalidBreakPointMap = new HashMap<>();
+    private Map<SWF, Map<String, Set<Integer>>> invalidBreakPointMap = new WeakHashMap<>();
 
-    private Map<String, Set<Integer>> toRemoveBPointMap = new HashMap<>();
+    private Map<SWF, Map<String, Set<Integer>>> toRemoveBPointMap = new WeakHashMap<>();
 
     private int breakIp = -1;
 
     private String breakScriptName = null;
+
+    private List<String> stackScriptNames = new ArrayList<>();
+
+    private List<Integer> stackLines = new ArrayList<>();
+
+    private List<SWF> debuggedSwfs = new ArrayList<>();
 
     public static class ActionScriptException extends Exception {
 
@@ -121,11 +129,24 @@ public class DebuggerHandler implements DebugConnectionListener {
         }
     }
 
+    public void setMainDebuggedSwf(SWF debuggedSwf) {
+        debuggedSwfs.clear();
+        //debuggedSwfs.add(debuggedSwf);
+    }
+
+    public List<SWF> getDebuggedSwfs() {
+        return debuggedSwfs;
+    }
+
     public int getBreakIp() {
         if (!isPaused()) {
             return -1;
         }
         return breakIp;
+    }
+
+    public int getDepth() {
+        return depth;
     }
 
     public String getBreakScriptName() {
@@ -135,9 +156,23 @@ public class DebuggerHandler implements DebugConnectionListener {
         return breakScriptName;
     }
 
-    public InGetVariable getVariable(long parentId, String varName, boolean children) {
+    public synchronized List<String> getStackScripts() {
+        if (!isPaused()) {
+            return new ArrayList<>();
+        }
+        return stackScriptNames;
+    }
+
+    public synchronized List<Integer> getStackLines() {
+        if (!isPaused()) {
+            return new ArrayList<>();
+        }
+        return stackLines;
+    }
+
+    public InGetVariable getVariable(long parentId, String varName, boolean children, boolean useGetter) {
         try {
-            return commands.getVariable(parentId, varName, true, children);
+            return commands.getVariable(parentId, varName, useGetter, children);
         } catch (IOException ex) {
             return null;
         }
@@ -169,27 +204,30 @@ public class DebuggerHandler implements DebugConnectionListener {
         }
     }
 
-    public synchronized void removeBreakPoint(String scriptName, int line) {
-        if (isBreakpointInvalid(scriptName, line)) {
-            invalidBreakPointMap.get(scriptName).remove(line);
-            if (invalidBreakPointMap.get(scriptName).isEmpty()) {
-                invalidBreakPointMap.remove(scriptName);
+    public synchronized void removeBreakPoint(SWF swf, String scriptName, int line) {
+        if (isBreakpointInvalid(swf, scriptName, line)) {
+            invalidBreakPointMap.get(swf).get(scriptName).remove(line);
+            if (invalidBreakPointMap.get(swf).get(scriptName).isEmpty()) {
+                invalidBreakPointMap.get(swf).remove(scriptName);
             }
             return;
         }
-        if (isBreakpointToAdd(scriptName, line)) {
-            toAddBPointMap.get(scriptName).remove(line);
-            if (toAddBPointMap.get(scriptName).isEmpty()) {
-                toAddBPointMap.remove(scriptName);
+        if (isBreakpointToAdd(swf, scriptName, line)) {
+            toAddBPointMap.get(swf).get(scriptName).remove(line);
+            if (toAddBPointMap.get(swf).get(scriptName).isEmpty()) {
+                toAddBPointMap.get(swf).remove(scriptName);
             }
-        } else if (isBreakpointConfirmed(scriptName, line)) {
-            if (!toRemoveBPointMap.containsKey(scriptName)) {
-                toRemoveBPointMap.put(scriptName, new TreeSet<>());
+        } else if (isBreakpointConfirmed(swf, scriptName, line)) {
+            if (!toRemoveBPointMap.containsKey(swf)) {
+                toRemoveBPointMap.put(swf, new HashMap<>());
             }
-            toRemoveBPointMap.get(scriptName).add(line);
+            if (!toRemoveBPointMap.get(swf).containsKey(scriptName)) {
+                toRemoveBPointMap.get(swf).put(scriptName, new TreeSet<>());
+            }
+            toRemoveBPointMap.get(swf).get(scriptName).add(line);
         }
         try {
-            sendBreakPoints(false);
+            sendBreakPoints();
         } catch (IOException ex) {
             //ignore
         }
@@ -206,92 +244,118 @@ public class DebuggerHandler implements DebugConnectionListener {
         }
     }
 
-    public synchronized Set<Integer> getBreakPoints(String scriptName, boolean onlyValid) {
+    public synchronized Set<Integer> getBreakPoints(SWF swf, String scriptName, boolean onlyValid) {
         Set<Integer> lines = new TreeSet<>();
-        if (confirmedPointMap.containsKey(scriptName)) {
-            lines.addAll(confirmedPointMap.get(scriptName));
+        if (confirmedPointMap.containsKey(swf) && confirmedPointMap.get(swf).containsKey(scriptName)) {
+            lines.addAll(confirmedPointMap.get(swf).get(scriptName));
         }
-        if (toAddBPointMap.containsKey(scriptName)) {
-            lines.addAll(toAddBPointMap.get(scriptName));
+        if (toAddBPointMap.containsKey(swf) && toAddBPointMap.get(swf).containsKey(scriptName)) {
+            lines.addAll(toAddBPointMap.get(swf).get(scriptName));
         }
-        if (!onlyValid && invalidBreakPointMap.containsKey(scriptName)) {
-            lines.addAll(invalidBreakPointMap.get(scriptName));
+        if (!onlyValid && invalidBreakPointMap.containsKey(swf) && invalidBreakPointMap.get(swf).containsKey(scriptName)) {
+            lines.addAll(invalidBreakPointMap.get(swf).get(scriptName));
         }
         return lines;
     }
 
-    public synchronized void clearBreakPoints() {
-        for (String scriptName : confirmedPointMap.keySet()) {
-            if (!toAddBPointMap.containsKey(scriptName)) {
-                toAddBPointMap.put(scriptName, new TreeSet<>());
+    public synchronized void clearBreakPoints(SWF swf) {
+        Map<String, Set<Integer>> breakpoints = getAllBreakPoints(swf, false);
+        for (String scriptName : breakpoints.keySet()) {
+            for (int line : breakpoints.get(scriptName)) {
+                removeBreakPoint(swf, scriptName, line);
             }
-            toAddBPointMap.get(scriptName).addAll(confirmedPointMap.get(scriptName));
         }
-        for (String scriptName : invalidBreakPointMap.keySet()) {
-            if (!toAddBPointMap.containsKey(scriptName)) {
-                toAddBPointMap.put(scriptName, new TreeSet<>());
-            }
-            toAddBPointMap.get(scriptName).addAll(invalidBreakPointMap.get(scriptName));
-        }
-        confirmedPointMap.clear();
-        invalidBreakPointMap.clear();
     }
 
-    public synchronized Map<String, Set<Integer>> getAllBreakPoints(boolean validOnly) {
-        Map<String, Set<Integer>> ret = new HashMap<>();
-        for (String scriptName : confirmedPointMap.keySet()) {
-            Set<Integer> lines = new TreeSet<>();
-            lines.addAll(confirmedPointMap.get(scriptName));
-            ret.put(scriptName, lines);
-        }
-        for (String scriptName : toAddBPointMap.keySet()) {
-            if (!ret.containsKey(scriptName)) {
-                ret.put(scriptName, new TreeSet<>());
+    public synchronized void makeBreakPointsUnconfirmed(SWF swf) {
+        if (confirmedPointMap.containsKey(swf)) {
+            for (String scriptName : confirmedPointMap.get(swf).keySet()) {
+                if (!toAddBPointMap.containsKey(swf)) {
+                    toAddBPointMap.put(swf, new HashMap<>());
+                }
+                if (!toAddBPointMap.get(swf).containsKey(scriptName)) {
+                    toAddBPointMap.get(swf).put(scriptName, new TreeSet<>());
+                }
+                toAddBPointMap.get(swf).get(scriptName).addAll(confirmedPointMap.get(swf).get(scriptName));
             }
-            ret.get(scriptName).addAll(toAddBPointMap.get(scriptName));
+            confirmedPointMap.get(swf).clear();
         }
-        if (!validOnly) {
-            for (String scriptName : invalidBreakPointMap.keySet()) {
+        if (invalidBreakPointMap.containsKey(swf)) {
+            for (String scriptName : invalidBreakPointMap.get(swf).keySet()) {
+                if (!toAddBPointMap.containsKey(swf)) {
+                    toAddBPointMap.put(swf, new HashMap<>());
+                }
+                if (!toAddBPointMap.get(swf).containsKey(scriptName)) {
+                    toAddBPointMap.get(swf).put(scriptName, new TreeSet<>());
+                }
+                toAddBPointMap.get(swf).get(scriptName).addAll(invalidBreakPointMap.get(swf).get(scriptName));
+            }
+
+            invalidBreakPointMap.get(swf).clear();
+        }
+
+    }
+
+    public synchronized Map<String, Set<Integer>> getAllBreakPoints(SWF swf, boolean validOnly) {
+        Map<String, Set<Integer>> ret = new HashMap<>();
+        if (confirmedPointMap.containsKey(swf)) {
+            for (String scriptName : confirmedPointMap.get(swf).keySet()) {
+                Set<Integer> lines = new TreeSet<>();
+                lines.addAll(confirmedPointMap.get(swf).get(scriptName));
+                ret.put(scriptName, lines);
+            }
+        }
+        if (toAddBPointMap.containsKey(swf)) {
+            for (String scriptName : toAddBPointMap.get(swf).keySet()) {
                 if (!ret.containsKey(scriptName)) {
                     ret.put(scriptName, new TreeSet<>());
                 }
-                ret.get(scriptName).addAll(invalidBreakPointMap.get(scriptName));
+                ret.get(scriptName).addAll(toAddBPointMap.get(swf).get(scriptName));
+            }
+        }
+        if (!validOnly) {
+            if (invalidBreakPointMap.containsKey(swf)) {
+                for (String scriptName : invalidBreakPointMap.get(swf).keySet()) {
+                    if (!ret.containsKey(scriptName)) {
+                        ret.put(scriptName, new TreeSet<>());
+                    }
+                    ret.get(scriptName).addAll(invalidBreakPointMap.get(swf).get(scriptName));
+                }
             }
         }
         return ret;
     }
 
-    public boolean addBreakPoint(String scriptName, int line) {
+    public boolean addBreakPoint(SWF swf, String scriptName, int line) {
         synchronized (this) {
-            Logger.getLogger(DebuggerHandler.class
-                    .getName()).log(Level.FINE, "adding bp " + scriptName + ":" + line);
-            if (isBreakpointToRemove(scriptName, line)) {
-                toRemoveBPointMap.get(scriptName).remove(line);
-                if (toRemoveBPointMap.get(scriptName).isEmpty()) {
-                    toRemoveBPointMap.remove(scriptName);
-
+            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "adding bp {0}:{1}", new Object[]{scriptName, line});
+            if (isBreakpointToRemove(swf, scriptName, line)) {
+                toRemoveBPointMap.get(swf).get(scriptName).remove(line);
+                if (toRemoveBPointMap.get(swf).get(scriptName).isEmpty()) {
+                    toRemoveBPointMap.get(swf).remove(scriptName);
                 }
             }
 
-            if (isBreakpointConfirmed(scriptName, line)) {
-                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "bp " + scriptName + ":" + line + " already confirmed");
+            if (isBreakpointConfirmed(swf, scriptName, line)) {
+                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "bp {0}:{1} already confirmed", new Object[]{scriptName, line});
                 return true;
 
             }
-            if (isBreakpointInvalid(scriptName, line)) {
-                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "bp " + scriptName + ":" + line + " already invalid");
+            if (isBreakpointInvalid(swf, scriptName, line)) {
+                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "bp {0}:{1} already invalid", new Object[]{scriptName, line});
                 return false;
             }
-            if (!toAddBPointMap.containsKey(scriptName)) {
-                toAddBPointMap.put(scriptName, new TreeSet<>());
+            if (!toAddBPointMap.containsKey(swf)) {
+                toAddBPointMap.put(swf, new HashMap<>());
             }
-            toAddBPointMap.get(scriptName).add(line);
-            Logger
-                    .getLogger(DebuggerHandler.class
-                            .getName()).log(Level.FINE, "bp " + scriptName + ":" + line + " added to todo");
+            if (!toAddBPointMap.get(swf).containsKey(scriptName)) {
+                toAddBPointMap.get(swf).put(scriptName, new TreeSet<>());
+            }
+            toAddBPointMap.get(swf).get(scriptName).add(line);
+            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "bp {0}:{1} added to todo", new Object[]{scriptName, line});
         }
         try {
-            sendBreakPoints(false);
+            sendBreakPoints();
         } catch (IOException ex) {
             //ignored
         }
@@ -299,30 +363,61 @@ public class DebuggerHandler implements DebugConnectionListener {
         return true;
     }
 
-    public synchronized boolean isBreakpointConfirmed(String scriptName, int line) {
-        return confirmedPointMap.containsKey(scriptName) && confirmedPointMap.get(scriptName).contains(line);
+    public synchronized boolean isBreakpointConfirmed(SWF swf, String scriptName, int line) {
+        return confirmedPointMap.containsKey(swf) && confirmedPointMap.get(swf).containsKey(scriptName) && confirmedPointMap.get(swf).get(scriptName).contains(line);
     }
 
-    public synchronized boolean isBreakpointToAdd(String scriptName, int line) {
-        return toAddBPointMap.containsKey(scriptName) && toAddBPointMap.get(scriptName).contains(line);
+    public synchronized boolean isBreakpointToAdd(SWF swf, String scriptName, int line) {
+        return toAddBPointMap.containsKey(swf) && toAddBPointMap.get(swf).containsKey(scriptName) && toAddBPointMap.get(swf).get(scriptName).contains(line);
     }
 
-    public synchronized boolean isBreakpointToRemove(String scriptName, int line) {
-        return toRemoveBPointMap.containsKey(scriptName) && toRemoveBPointMap.get(scriptName).contains(line);
+    public synchronized boolean isBreakpointToRemove(SWF swf, String scriptName, int line) {
+        return toRemoveBPointMap.containsKey(swf) && toRemoveBPointMap.get(swf).containsKey(scriptName) && toRemoveBPointMap.get(swf).get(scriptName).contains(line);
     }
 
-    public synchronized boolean isBreakpointInvalid(String scriptName, int line) {
-        return invalidBreakPointMap.containsKey(scriptName) && invalidBreakPointMap.get(scriptName).contains(line);
+    public synchronized boolean isBreakpointInvalid(SWF swf, String scriptName, int line) {
+        return invalidBreakPointMap.containsKey(swf) && invalidBreakPointMap.get(swf).containsKey(scriptName) && invalidBreakPointMap.get(swf).get(scriptName).contains(line);
     }
 
-    private synchronized void markBreakPointInvalid(String scriptName, int line) {
-        if (!invalidBreakPointMap.containsKey(scriptName)) {
-            invalidBreakPointMap.put(scriptName, new TreeSet<>());
+    private synchronized void markBreakPointInvalid(SWF swf, String scriptName, int line) {
+        if (!invalidBreakPointMap.containsKey(swf)) {
+            invalidBreakPointMap.put(swf, new HashMap<>());
         }
-        invalidBreakPointMap.get(scriptName).add(line);
+        if (!invalidBreakPointMap.get(swf).containsKey(scriptName)) {
+            invalidBreakPointMap.get(swf).put(scriptName, new TreeSet<>());
+        }
+        invalidBreakPointMap.get(swf).get(scriptName).add(line);
+    }
+
+    private synchronized void markBreakPointConfirmed(SWF swf, String scriptName, int line) {
+        if (!confirmedPointMap.containsKey(swf)) {
+            confirmedPointMap.put(swf, new HashMap<>());
+        }
+        if (!confirmedPointMap.get(swf).containsKey(scriptName)) {
+            confirmedPointMap.get(swf).put(scriptName, new TreeSet<>());
+        }
+        confirmedPointMap.get(swf).get(scriptName).add(line);
+    }
+
+    private synchronized void markBreakPointValid(SWF swf, String scriptName, int line) {
+        if (!invalidBreakPointMap.containsKey(swf)) {
+            return;
+        }
+        if (!invalidBreakPointMap.get(swf).containsKey(scriptName)) {
+            return;
+        }
+        invalidBreakPointMap.get(swf).get(scriptName).remove(line);
+        if (invalidBreakPointMap.get(swf).get(scriptName).isEmpty()) {
+            invalidBreakPointMap.get(swf).remove(scriptName);
+        }
+        if (invalidBreakPointMap.get(swf).isEmpty()) {
+            invalidBreakPointMap.remove(swf);
+        }
     }
 
     private InFrame frame;
+
+    private int depth;
 
     private InConstantPool pool;
 
@@ -330,17 +425,38 @@ public class DebuggerHandler implements DebugConnectionListener {
 
     private InBreakReason breakReason;
 
-    private final List<BreakListener> breakListeners = new ArrayList<>();
+    private final List<BreakListener> breakListeners = new CopyOnWriteArrayList<>();
 
     private final List<TraceListener> traceListeners = new ArrayList<>();
 
+    private final List<ErrorListener> errorListeners = new ArrayList<>();
+
+    private final List<FrameChangeListener> frameChangeListeners = new ArrayList<>();
+
     private final List<ConnectionListener> clisteners = new ArrayList<>();
+
+    public void setDepth(int depth) {
+        this.depth = depth;
+        refreshFrame();
+    }
 
     public String moduleToString(int file) {
         if (!modulePaths.containsKey(file)) {
             return "unknown";
         }
         return modulePaths.get(file);
+    }
+
+    public Integer moduleToMethodIndex(int file) {
+        return moduleToMethodIndex.get(file);
+    }
+
+    public Integer moduleToClassIndex(int file) {
+        return moduleToClassIndex.get(file);
+    }
+
+    public Integer moduleToTraitIndex(int file) {
+        return moduleToTraitIndex.get(file);
     }
 
     public synchronized InBreakAtExt getBreakInfo() {
@@ -369,6 +485,16 @@ public class DebuggerHandler implements DebugConnectionListener {
         public void trace(String... val);
     }
 
+    public static interface ErrorListener {
+
+        public void errorException(String message, Variable thrownVar);
+    }
+
+    public static interface FrameChangeListener {
+
+        public void frameChanged();
+    }
+
     public static interface BreakListener {
 
         public void breakAt(String scriptName, int line, int classIndex, int traitIndex, int methodIndex);
@@ -380,12 +506,28 @@ public class DebuggerHandler implements DebugConnectionListener {
         breakListeners.add(l);
     }
 
+    public void addFrameChangeListener(FrameChangeListener l) {
+        frameChangeListeners.add(l);
+    }
+
+    public void removeFrameChangeListener(FrameChangeListener l) {
+        frameChangeListeners.remove(l);
+    }
+
     public void addTraceListener(TraceListener l) {
         traceListeners.add(l);
     }
 
     public void removeTraceListener(TraceListener l) {
         traceListeners.remove(l);
+    }
+
+    public void addErrorListener(ErrorListener l) {
+        errorListeners.add(l);
+    }
+
+    public void removeErrorListener(ErrorListener l) {
+        errorListeners.remove(l);
     }
 
     public void removeBreakListener(BreakListener l) {
@@ -405,10 +547,13 @@ public class DebuggerHandler implements DebugConnectionListener {
             return;
         }
         try {
-            frame = commands.getFrame(0);
+            frame = commands.getFrame(depth);
             pool = commands.getConstantPool(0);
         } catch (IOException ex) {
             //ignore
+        }
+        for (FrameChangeListener l : frameChangeListeners) {
+            l.frameChanged();
         }
     }
 
@@ -419,11 +564,11 @@ public class DebuggerHandler implements DebugConnectionListener {
         return frame;
     }
 
-    public synchronized int moduleIdOf(String pack) {
-        if (scriptToModule.containsKey(pack)) {
-            return scriptToModule.get(pack);
+    public synchronized int moduleIdOf(String packWithHash) {
+        if (!scriptToModule.containsKey(packWithHash)) {
+            return -1;
         }
-        return -1;
+        return scriptToModule.get(packWithHash);
     }
 
     public boolean isPaused() {
@@ -433,10 +578,6 @@ public class DebuggerHandler implements DebugConnectionListener {
         synchronized (this) {
             return paused;
         }
-    }
-
-    public List<InSwfInfo.SwfInfo> getSwfs() {
-        return swfs;
     }
 
     public void disconnect() {
@@ -450,24 +591,38 @@ public class DebuggerHandler implements DebugConnectionListener {
         }
         commands = null;
         synchronized (this) {
-            for (String scriptName : confirmedPointMap.keySet()) {
-                if (!toAddBPointMap.containsKey(scriptName)) {
-                    toAddBPointMap.put(scriptName, new TreeSet<>());
+            for (SWF debuggedSwf : debuggedSwfs) {
+                if (confirmedPointMap.containsKey(debuggedSwf)) {
+                    for (String scriptName : confirmedPointMap.get(debuggedSwf).keySet()) {
+                        if (!toAddBPointMap.containsKey(debuggedSwf)) {
+                            toAddBPointMap.put(debuggedSwf, new HashMap<>());
+                        }
+                        if (!toAddBPointMap.get(debuggedSwf).containsKey(scriptName)) {
+                            toAddBPointMap.get(debuggedSwf).put(scriptName, new TreeSet<>());
+                        }
+                        toAddBPointMap.get(debuggedSwf).get(scriptName).addAll(confirmedPointMap.get(debuggedSwf).get(scriptName));
+                    }
+                    confirmedPointMap.get(debuggedSwf).clear();
                 }
-                toAddBPointMap.get(scriptName).addAll(confirmedPointMap.get(scriptName));
-            }
-            confirmedPointMap.clear();
-            for (String scriptName : invalidBreakPointMap.keySet()) {
-                if (!toAddBPointMap.containsKey(scriptName)) {
-                    toAddBPointMap.put(scriptName, new TreeSet<>());
+
+                if (invalidBreakPointMap.containsKey(debuggedSwf)) {
+                    for (String scriptName : invalidBreakPointMap.get(debuggedSwf).keySet()) {
+                        if (!toAddBPointMap.containsKey(debuggedSwf)) {
+                            toAddBPointMap.put(debuggedSwf, new HashMap<>());
+                        }
+                        if (!toAddBPointMap.get(debuggedSwf).containsKey(scriptName)) {
+                            toAddBPointMap.get(debuggedSwf).put(scriptName, new TreeSet<>());
+                        }
+                        toAddBPointMap.get(debuggedSwf).get(scriptName).addAll(invalidBreakPointMap.get(debuggedSwf).get(scriptName));
+                    }
+                    invalidBreakPointMap.get(debuggedSwf).clear();
                 }
-                toAddBPointMap.get(scriptName).addAll(invalidBreakPointMap.get(scriptName));
             }
-            invalidBreakPointMap.clear();
         }
         for (ConnectionListener l : clisteners) {
             l.disconnected();
         }
+        debuggedSwfs.clear();
     }
 
     public synchronized boolean isConnected() {
@@ -481,16 +636,6 @@ public class DebuggerHandler implements DebugConnectionListener {
         return commands;
     }
 
-    private static void enlog(Class<?> cls) {
-        Level level = Level.FINEST;
-
-        Logger mylog = Logger.getLogger(cls.getName());
-        mylog.setLevel(level);
-        ConsoleHandler ch = new ConsoleHandler();
-        ch.setLevel(level);
-        mylog.addHandler(ch);
-    }
-
     @Override
     public void failedListen(IOException ex) {
         View.execInEventDispatch(new Runnable() {
@@ -499,7 +644,7 @@ public class DebuggerHandler implements DebugConnectionListener {
                 disconnect();
                 Main.stopRun();
                 Main.stopWork();
-                View.showMessageDialog(Main.getMainFrame().getPanel(), AppStrings.translate("error.debug.listen").replace("%port%", "" + Debugger.DEBUG_PORT));
+                ViewMessages.showMessageDialog(Main.getMainFrame().getPanel(), AppStrings.translate("error.debug.listen").replace("%port%", "" + Debugger.DEBUG_PORT));
                 Main.getMainFrame().getPanel().updateMenu();
             }
         });
@@ -508,7 +653,9 @@ public class DebuggerHandler implements DebugConnectionListener {
 
     @Override
     public void connected(DebuggerConnection con) {
-        clearBreakPoints();
+        /*for (SWF debuggedSwf : debuggedSwfs) {
+            makeBreakPointsUnconfirmed(debuggedSwf);
+        }*/
 
         Main.startWork(AppStrings.translate("work.debugging"), null);
 
@@ -527,7 +674,7 @@ public class DebuggerHandler implements DebugConnectionListener {
             Logger.getLogger(DebuggerHandler.class.getName()).log(Level.SEVERE, null, ex);
         }
 
-        //Respon to InProcessTag with OutProcessedTag
+        //Respond to InProcessTag with OutProcessedTag
         con.addMessageListener(new DebugMessageListener<InProcessTag>() {
             @Override
             public void message(InProcessTag message) {
@@ -540,14 +687,26 @@ public class DebuggerHandler implements DebugConnectionListener {
             }
         });
 
-        swfs.clear();
+        swfIndicesCommitted.clear();
+        swfIndicesNewToSwfHash.clear();
 
         Map<Integer, String> moduleNames = new HashMap<>();
 
         final Pattern patAS3 = Pattern.compile("^(.*);(.*);(.*)\\.as$");
-        final Pattern patAS3PCode = Pattern.compile("^#PCODE abc:([0-9]+),script:([0-9]+),class:(-?[0-9]+),trait:(-?[0-9]+),method:([0-9]+),body:([0-9]+);(.*)$");
+        final Pattern patAS3PCode = Pattern.compile("^(?<hash>[0-9a-z_]+):#PCODE abc:(?<abc>[0-9]+),script:(?<script>[0-9]+),class:(?<class>-?[0-9]+),trait:(?<trait>-?[0-9]+),method:(?<method>[0-9]+),body:(?<body>[0-9]+);(.*)$");
 
+        boolean isAS3 = Main.getRunningSWF().isAS3();
         try {
+
+            con.addMessageListener(new DebugMessageListener<InErrorException>() {
+                @Override
+                public void message(InErrorException t) {
+                    for (ErrorListener l : errorListeners) {
+                        l.errorException(t.exceptionMessage, t.thrownVar);
+                    }
+                    con.dropMessage(t);
+                }
+            });
 
             con.addMessageListener(new DebugMessageListener<InNumScript>() {
                 @Override
@@ -556,36 +715,70 @@ public class DebuggerHandler implements DebugConnectionListener {
                 }
             });
 
-            modulePaths = new HashMap<>();
-            scriptToModule = new HashMap<>();
+            modulePaths.clear();
+            scriptToModule.clear();
+            moduleNames.clear();
+            moduleToClassIndex.clear();
+            moduleToTraitIndex.clear();
+            moduleToMethodIndex.clear();
+            moduleToSwfIndex.clear();
 
             con.addMessageListener(new DebugMessageListener<InScript>() {
                 @Override
                 public void message(InScript sc) {
-                    moduleNames.put(sc.module, sc.name);
-                    moduleToSwfIndex.put(sc.module, sc.swfIndex);
-                    int file = sc.module;
-                    String name = sc.name;
-                    String[] parts = name.split(";");
+                    synchronized (DebuggerHandler.this) {
+                        moduleNames.put(sc.module, sc.name);
+                        int file = sc.module;
+                        String name = sc.name;
+                        int swfIndex = sc.swfIndex;
 
-                    Matcher m;
-                    if ((m = patAS3.matcher(name)).matches()) {
-                        String clsNameWithSuffix = m.group(3);
-                        String pkg = m.group(2).replace("\\", ".");
-                        m = patAS3PCode.matcher(name);
+                        name = name.replaceAll("\\[(invalid_utf8=[0-9]+)\\]", "{$1}");
 
-                        if (m.matches()) {
-                            moduleToClassIndex.put(file, Integer.parseInt(m.group(3)));
-                            moduleToTraitIndex.put(file, Integer.parseInt(m.group(4)));
-                            moduleToMethodIndex.put(file, Integer.parseInt(m.group(5)));
-                            name = DottedChain.parseWithSuffix(pkg).addWithSuffix(clsNameWithSuffix).toString();
-                            name = "#PCODE abc:" + m.group(1) + ",body:" + m.group(6) + ";" + name;
+                        Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "Received script added - index {0} name: {1}", new Object[]{file, name});
+
+                        String swfHash = "main";
+                        Matcher m;
+                        if ((m = patAS3.matcher(name)).matches()) {
+                            String clsNameWithSuffix = m.group(3).replace("{{semicolon}}", ";");
+                            String pkg = m.group(2).replace("{{semicolon}}", ";").replace("\\", ".");
+                            m = patAS3PCode.matcher(name);
+                            if (m.matches()) {
+                                moduleToClassIndex.put(file, Integer.parseInt(m.group("class")));
+                                moduleToTraitIndex.put(file, Integer.parseInt(m.group("trait")));
+                                moduleToMethodIndex.put(file, Integer.parseInt(m.group("method")));
+                                name = DottedChain.parseWithSuffix(pkg).addWithSuffix(clsNameWithSuffix).toString();
+                                swfHash = m.group("hash");
+                                name = swfHash + ":" + "#PCODE abc:" + m.group("abc") + ",body:" + m.group("body") + ";" + name;
+                            } else {
+                                if (pkg.contains(":")) {
+                                    swfHash = pkg.substring(0, pkg.indexOf(":"));
+                                    pkg = pkg.substring(pkg.indexOf(":") + 1);
+                                }
+
+                                name = swfHash + ":" + DottedChain.parseWithSuffix(pkg).addWithSuffix(clsNameWithSuffix).toPrintableString(con.isAS3);
+                            }
                         } else {
-                            name = DottedChain.parseWithSuffix(pkg).addWithSuffix(clsNameWithSuffix).toString();
+                            if (name.contains(":")) {
+                                swfHash = name.substring(0, name.indexOf(":"));
+                            }
+                        }
+                        Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "Script added - index {0} name: {1}", new Object[]{file, name});
+                        modulePaths.put(file, name);
+                        scriptToModule.put(name, file);
+                        moduleToSwfIndex.put(file, swfIndex);
+                        if (swfIndex > debuggedSwfs.size() - 1) {
+                            SWF swf = Main.getSwfByHash(swfHash);
+                            if (swf == null) {
+                                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.WARNING, "SWF with hash {0} not found", swfHash);
+                            } else {
+                                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "adding {0} to debugSwfs", swfIndex);
+                                swfIndicesCommitted.add(swfIndex);
+                                debuggedSwfs.add(swf);
+                            }
+                        } else {
+                            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "Swf index already committed");
                         }
                     }
-                    modulePaths.put(file, name);
-                    scriptToModule.put(name, file);
                     con.dropMessage(sc);
                 }
             });
@@ -610,7 +803,6 @@ public class DebuggerHandler implements DebugConnectionListener {
             commands.setGetterTimeout(1500);
             commands.setSetterTimeout(5000);
 
-            boolean isAS3 = (Main.getMainFrame().getPanel().getCurrentSwf().isAS3());
             con.isAS3 = isAS3;
 
             //Widelines - only AS3, it hangs in AS1/2 and SWD does not support UI32 lines
@@ -626,8 +818,7 @@ public class DebuggerHandler implements DebugConnectionListener {
             con.addMessageListener(new DebugMessageListener<InSwfInfo>() {
                 @Override
                 public void message(InSwfInfo t) {
-                    for (InSwfInfo.SwfInfo s : t.swfInfos) {
-                        swfs.add(s);
+                    /*for (InSwfInfo.SwfInfo s : t.swfInfos) {
                         View.execInEventDispatch(new Runnable() {
                             @Override
                             public void run() {
@@ -639,7 +830,7 @@ public class DebuggerHandler implements DebugConnectionListener {
                                 }
                             }
                         });
-                    }
+                    }*/
                     con.dropMessage(t);
                 }
             });
@@ -648,29 +839,26 @@ public class DebuggerHandler implements DebugConnectionListener {
             synchronized (this) {
                 for (int i = 0; i < isb.files.size(); i++) {
                     String sname = moduleNames.get(isb.files.get(i));
-                    if (!confirmedPointMap.containsKey(sname)) {
-                        confirmedPointMap.put(sname, new TreeSet<>());
+                    SWF debuggedSwf = debuggedSwfs.get(moduleToSwfIndex.get(isb.files.get(i)));
+                    if (!confirmedPointMap.containsKey(debuggedSwf)) {
+                        confirmedPointMap.put(debuggedSwf, new HashMap<>());
                     }
-                    if (toAddBPointMap.containsKey(sname)) {
-                        toAddBPointMap.get(sname).remove(isb.lines.get(i));
-                        if (toAddBPointMap.get(sname).isEmpty()) {
-                            toAddBPointMap.remove(sname);
+                    if (!confirmedPointMap.get(debuggedSwf).containsKey(sname)) {
+                        confirmedPointMap.get(debuggedSwf).put(sname, new TreeSet<>());
+                    }
+                    if (toAddBPointMap.containsKey(debuggedSwf)) {
+                        if (toAddBPointMap.get(debuggedSwf).containsKey(sname)) {
+                            toAddBPointMap.get(debuggedSwf).get(sname).remove(isb.lines.get(i));
+                            if (toAddBPointMap.get(debuggedSwf).get(sname).isEmpty()) {
+                                toAddBPointMap.get(debuggedSwf).remove(sname);
+                            }
                         }
                     }
-                    confirmedPointMap.get(sname).add(isb.lines.get(i));
+                    confirmedPointMap.get(debuggedSwf).get(sname).add(isb.lines.get(i));
                     Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} submitted successfully", new Object[]{sname, isb.lines.get(i)});
                 }
             }
 
-            synchronized (this) {
-                connected = true;
-            }
-            con.addMessageListener(new DebugMessageListener<InAskBreakpoints>() {
-                @Override
-                public void message(InAskBreakpoints message) {
-
-                }
-            });
             con.addMessageListener(new DebugMessageListener<InContinue>() {
                 @Override
                 public void message(InContinue msg) {
@@ -683,6 +871,7 @@ public class DebuggerHandler implements DebugConnectionListener {
                     }
                 }
             });
+
             con.addMessageListener(new DebugMessageListener<InBreakAt>() {
                 @Override
                 public void message(InBreakAt message) {
@@ -693,41 +882,67 @@ public class DebuggerHandler implements DebugConnectionListener {
                     }
 
                     try {
+                        //ignore single InSetBreakpoint, otherwise setting breakpoints later won't work
+                        con.getMessage(InSetBreakpoint.class, DebuggerConnection.PREF_RESPONSE_TIMEOUT);
+
                         breakInfo = con.getMessage(InBreakAtExt.class, DebuggerConnection.PREF_RESPONSE_TIMEOUT);
                         breakReason = con.sendMessageWithTimeout(new OutGetBreakReason(con), InBreakReason.class);
 
+                        int reasonInt = breakReason == null ? 0 : breakReason.reason;
+
                         String newBreakScriptName = "unknown";
+                        String userBreakScriptName = "unknown";
                         if (modulePaths.containsKey(message.file)) {
                             newBreakScriptName = modulePaths.get(message.file);
-
-                        } else if (breakReason.reason != InBreakReason.REASON_SCRIPT_LOADED) {
+                            userBreakScriptName = newBreakScriptName;
+                            if (newBreakScriptName.contains(":")) {
+                                String swfHash = newBreakScriptName.substring(0, newBreakScriptName.indexOf(":"));
+                                SWF swf = Main.getSwfByHash(swfHash);
+                                userBreakScriptName = swf.toString() + ": " + newBreakScriptName.substring(newBreakScriptName.indexOf(":") + 1);
+                            }
+                        } else if (reasonInt != InBreakReason.REASON_SCRIPT_LOADED) {
                             Logger.getLogger(DebuggerCommands.class.getName()).log(Level.SEVERE, "Invalid file: {0}", message.file);
-                            return;
+                            //return;
                         }
 
                         final String[] reasonNames = new String[]{"unknown", "breakpoint", "watch", "fault", "stopRequest", "step", "halt", "scriptLoaded"};
-                        String reason = breakReason.reason < reasonNames.length ? reasonNames[breakReason.reason] : reasonNames[0];
+                        String reason = reasonInt < reasonNames.length ? reasonNames[reasonInt] : reasonNames[0];
 
                         Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "break at {0}:{1}, reason: {2}", new Object[]{newBreakScriptName, message.line, reason});
 
-                        sendBreakPoints(false);
+                        try {
+                            sendBreakPoints();
+                        } catch (IOException ex) {
+                            //ignore
+                            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINE, "send breakpoints exception: " + ex.getMessage());
+                        }
+
                         synchronized (DebuggerHandler.this) {
                             breakScriptName = newBreakScriptName;
                             breakIp = message.line;
+
+                            if (breakInfo != null) {
+                                List<String> files = new ArrayList<>();
+                                for (int i = 0; i < breakInfo.files.size(); i++) {
+                                    files.add(Main.getDebugHandler().moduleToString(breakInfo.files.get(i)));
+                                }
+                                stackScriptNames = files;
+                                List<Integer> lines = new ArrayList<>(breakInfo.lines);
+                                stackLines = lines;
+                            }
                         }
 
-                        if (breakReason.reason == InBreakReason.REASON_SCRIPT_LOADED) {
+                        if (reasonInt == InBreakReason.REASON_SCRIPT_LOADED) {
                             if (!Configuration.debugHalt.get()) {
                                 commands.sendContinue();
                                 return;
                             }
                             Main.startWork(AppStrings.translate("work.halted"), null);
                         } else {
-                            Main.startWork(AppStrings.translate("work.breakat") + newBreakScriptName + ":" + message.line + " " + AppStrings.translate("debug.break.reason." + reason), null);
+                            Main.startWork(AppStrings.translate("work.breakat") + userBreakScriptName + ":" + message.line + " " + AppStrings.translate("debug.break.reason." + reason), null);
                         }
-                        frame = commands.getFrame(0);
-                        pool = commands.getConstantPool(0);
-
+                        depth = 0;
+                        refreshFrame();
                         for (BreakListener l : breakListeners) {
                             l.breakAt(newBreakScriptName, message.line,
                                     moduleToClassIndex.containsKey(message.file) ? moduleToClassIndex.get(message.file) : -1,
@@ -742,6 +957,17 @@ public class DebuggerHandler implements DebugConnectionListener {
 
                 }
             });
+
+            synchronized (this) {
+                connected = true;
+            }
+            /*if (!isAS3) {
+                try {
+                    commands.getConnection().writeMessage(new OutRewind(commands.getConnection()));
+                } catch (IOException ex) {
+                    Logger.getLogger(DebuggerHandler.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }*/
 
             for (ConnectionListener l : clisteners) {
                 l.connected();
@@ -770,52 +996,83 @@ public class DebuggerHandler implements DebugConnectionListener {
         }
     }
 
-    private void sendBreakPoints(boolean force) throws IOException {
-        if (!force && !isPaused()) {
-            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "not sending bps, not paused");
+    private void sendBreakPoints() throws IOException {
+        if (!isConnected()) {
+            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "not sending bps, not connected");
             return;
         }
         synchronized (this) {
-            for (String scriptName : toRemoveBPointMap.keySet()) {
-                int file = moduleIdOf(scriptName);
-                if (file > -1) {
-                    for (int line : toRemoveBPointMap.get(scriptName)) {
-                        if (isBreakpointConfirmed(scriptName, line)) {
-                            commands.removeBreakPoint(file, line);
-                            confirmedPointMap.get(scriptName).remove(line);
-                            if (confirmedPointMap.get(scriptName).isEmpty()) {
-                                confirmedPointMap.remove(scriptName);
+            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "sending breakpoints of {0} swfs", debuggedSwfs.size());
+            for (int swfIndex = 0; swfIndex < debuggedSwfs.size(); swfIndex++) {
+                if (!swfIndicesCommitted.contains(swfIndex)) {
+                    continue;
+                }
+                SWF debuggedSwf = debuggedSwfs.get(swfIndex);
+                String hash = Main.getSwfHash(debuggedSwf);
+
+                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "sending breakpoints of ", hash);
+
+                if (toRemoveBPointMap.containsKey(debuggedSwf)) {
+                    for (String scriptName : toRemoveBPointMap.get(debuggedSwf).keySet()) {
+                        if (scriptName.startsWith("#PCODE") != Main.isDebugPCode()) {
+                            continue;
+                        }
+                        int file = moduleIdOf(hash + ":" + scriptName);
+                        if (file > -1) {
+                            for (int line : toRemoveBPointMap.get(debuggedSwf).get(scriptName)) {
+                                if (isBreakpointConfirmed(debuggedSwf, scriptName, line)) {
+                                    commands.removeBreakPoint(file, line);
+                                    confirmedPointMap.get(debuggedSwf).get(scriptName).remove(line);
+                                    if (confirmedPointMap.get(debuggedSwf).get(scriptName).isEmpty()) {
+                                        confirmedPointMap.get(debuggedSwf).remove(scriptName);
+                                    }
+                                }
+                                Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} removed", new Object[]{scriptName, line});
                             }
                         }
-                        Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} removed", new Object[]{scriptName, line});
+                    }
+                    toRemoveBPointMap.get(debuggedSwf).clear();
+                    if (toRemoveBPointMap.get(debuggedSwf).isEmpty()) {
+                        toRemoveBPointMap.remove(debuggedSwf);
                     }
                 }
-            }
-            toRemoveBPointMap.clear();
 
-            for (String scriptName : toAddBPointMap.keySet()) {
-                int file = moduleIdOf(scriptName);
-                if (file > -1) {
-                    for (int line : toAddBPointMap.get(scriptName)) {
-                        if (commands.addBreakPoint(file, line)) {
-                            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} submitted successfully", new Object[]{scriptName, line});
-                            if (!confirmedPointMap.containsKey(scriptName)) {
-                                confirmedPointMap.put(scriptName, new TreeSet<>());
+                if (toAddBPointMap.containsKey(debuggedSwf)) {
+                    Set<String> toAddScripts = new HashSet<>(toAddBPointMap.get(debuggedSwf).keySet());
+                    for (String scriptName : toAddScripts) {
+                        if (scriptName.startsWith("#PCODE") != Main.isDebugPCode()) {
+                            continue;
+                        }
+                        Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "searching for module of {0}:{1}", new Object[]{hash, scriptName});
+                        int file = moduleIdOf(hash + ":" + scriptName);
+                        Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "module = {0}", file);
+                        if (file > -1) {
+                            Set<Integer> lines = new HashSet<>(toAddBPointMap.get(debuggedSwf).get(scriptName));
+                            for (int line : lines) {
+                                if (commands.addBreakPoint(file, line)) {
+                                    Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} submitted successfully", new Object[]{scriptName, line});
+                                    markBreakPointConfirmed(debuggedSwf, scriptName, line);
+                                    markBreakPointValid(debuggedSwf, scriptName, line);
+                                    toAddBPointMap.get(debuggedSwf).get(scriptName).remove(line);
+                                    if (toAddBPointMap.get(debuggedSwf).get(scriptName).isEmpty()) {
+                                        toAddBPointMap.get(debuggedSwf).remove(scriptName);
+                                    }
+                                    if (toAddBPointMap.get(debuggedSwf).isEmpty()) {
+                                        toAddBPointMap.remove(debuggedSwf);
+                                    }
+                                } else {
+                                    Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} unable to submit", new Object[]{scriptName, line});
+                                    markBreakPointInvalid(debuggedSwf, scriptName, line);
+                                }
                             }
-                            confirmedPointMap.get(scriptName).add(line);
                         } else {
-                            Logger.getLogger(DebuggerHandler.class.getName()).log(Level.INFO, "Breakpoint {0}:{1} unable to submit", new Object[]{scriptName, line});
-                            markBreakPointInvalid(scriptName, line);
+                            for (int line : toAddBPointMap.get(debuggedSwf).get(scriptName)) {
+                                markBreakPointInvalid(debuggedSwf, scriptName, line);
+                            }
                         }
-                    }
-                } else {
-                    for (int line : toAddBPointMap.get(scriptName)) {
-                        markBreakPointInvalid(scriptName, line);
                     }
                 }
             }
-            toAddBPointMap.clear();
-
         }
         Logger.getLogger(DebuggerHandler.class.getName()).log(Level.FINEST, "sending bps finished");
 
@@ -833,7 +1090,7 @@ public class DebuggerHandler implements DebugConnectionListener {
     }
 
     public synchronized InCallFunction callMethod(String object, String methodName, List<Object> args) throws ActionScriptException {
-        InGetVariable igv = getVariable(0, object, false);
+        InGetVariable igv = getVariable(0, object, false, false);
         return callMethod(igv.parent, methodName, args);
     }
 
@@ -894,7 +1151,7 @@ public class DebuggerHandler implements DebugConnectionListener {
             }
             return icf;
         } catch (IOException e) {
-
+            //ignored
         }
         return null;
     }

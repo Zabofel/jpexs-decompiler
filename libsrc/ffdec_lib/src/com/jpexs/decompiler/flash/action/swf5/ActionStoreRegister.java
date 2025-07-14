@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,11 +22,12 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.LocalDataArea;
 import com.jpexs.decompiler.flash.action.StoreTypeAction;
+import com.jpexs.decompiler.flash.action.as2.Trait;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.model.ConstantPool;
 import com.jpexs.decompiler.flash.action.model.DecrementActionItem;
 import com.jpexs.decompiler.flash.action.model.DirectValueActionItem;
 import com.jpexs.decompiler.flash.action.model.EnumeratedValueActionItem;
-import com.jpexs.decompiler.flash.action.model.EnumerationAssignmentValueActionItem;
 import com.jpexs.decompiler.flash.action.model.IncrementActionItem;
 import com.jpexs.decompiler.flash.action.model.PostDecrementActionItem;
 import com.jpexs.decompiler.flash.action.model.PostIncrementActionItem;
@@ -39,18 +40,26 @@ import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphSourceItemPos;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.SecondPassData;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.AnyItem;
+import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * StoreRegister action - Store value in register.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 5)
 public class ActionStoreRegister extends Action implements StoreTypeAction {
 
+    /**
+     * Register number
+     */
     public int registerNumber;
 
     @Override
@@ -64,18 +73,36 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
         return true;
     }
 
-    public ActionStoreRegister(int registerNumber) {
-        super(0x87, 1);
+    /**
+     * Constructor.
+     * @param registerNumber Register number
+     * @param charset Charset
+     */
+    public ActionStoreRegister(int registerNumber, String charset) {
+        super(0x87, 1, charset);
         this.registerNumber = registerNumber;
     }
 
+    /**
+     * Constructor.
+     * @param actionLength Action length
+     * @param sis SWF input stream
+     * @throws IOException On I/O error
+     */
     public ActionStoreRegister(int actionLength, SWFInputStream sis) throws IOException {
-        super(0x87, actionLength);
+        super(0x87, actionLength, sis.getCharset());
         registerNumber = sis.readUI8("registerNumber");
     }
 
-    public ActionStoreRegister(FlasmLexer lexer) throws IOException, ActionParseException {
-        super(0x87, 0);
+    /**
+     * Constructor.
+     * @param lexer Flasm lexer
+     * @param charset Charset
+     * @throws IOException On I/O error
+     * @throws ActionParseException On action parse error
+     */
+    public ActionStoreRegister(FlasmLexer lexer, String charset) throws IOException, ActionParseException {
+        super(0x87, 0, charset);
         registerNumber = (int) lexLong(lexer);
     }
 
@@ -100,7 +127,7 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
     }
 
     @Override
-    public void translate(boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
+    public void translate(Map<String, Map<String, Trait>> uninitializedClassTraits, SecondPassData secondPassData, boolean insideDoInitAction, GraphSourceItem lineStartAction, TranslateStack stack, List<GraphTargetItem> output, HashMap<Integer, String> regNames, HashMap<String, GraphTargetItem> variables, HashMap<String, GraphTargetItem> functions, int staticOperation, String path) {
         GraphTargetItem value = stack.pop();
         RegisterNumber rn = new RegisterNumber(registerNumber);
         if (regNames.containsKey(registerNumber)) {
@@ -118,9 +145,9 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
         }
 
         if (value instanceof TemporaryRegister) {
-            if (((TemporaryRegister) value).value instanceof EnumerationAssignmentValueActionItem) {
-                value = ((TemporaryRegister) value).value;
-            }
+            //if (((TemporaryRegister) value).value instanceof EnumerationAssignmentValueActionItem) {
+            value = ((TemporaryRegister) value).value;
+            //}
         }
 
         variables.put("__register" + registerNumber, value);
@@ -144,7 +171,7 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
             if (!stack.isEmpty() && stack.peek().valueEquals(obj)) {
                 stack.pop();
                 stack.push(new PostIncrementActionItem(this, lineStartAction, obj));
-                stack.push(obj);
+                stack.push(new AnyItem()); //to avoid leaving popped item on output
                 return;
             }
         }
@@ -153,15 +180,31 @@ public class ActionStoreRegister extends Action implements StoreTypeAction {
             if (!stack.isEmpty() && stack.peek().valueEquals(obj)) {
                 stack.pop();
                 stack.push(new PostDecrementActionItem(this, lineStartAction, obj));
-                stack.push(obj);
+                stack.push(new AnyItem()); //to avoid leaving popped item on output
                 return;
             }
         }
 
         if ((value instanceof EnumeratedValueActionItem)) {
-            variables.put("__register" + registerNumber, new TemporaryRegister(registerNumber, new EnumerationAssignmentValueActionItem()));
+            //variables.put("__register" + registerNumber, new TemporaryRegister(registerNumber, new EnumerationAssignmentValueActionItem()));
+            //variables.put("__register" + registerNumber, null);
+            variables.remove("__register" + registerNumber);
         }
-        stack.push(new StoreRegisterActionItem(this, lineStartAction, rn, value, define));
+        StoreRegisterActionItem ret = new StoreRegisterActionItem(this, lineStartAction, rn, value, define);
+        if (value.getNotCoercedNoDup() instanceof CompoundableBinaryOpAs12) {
+            CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) value.getNotCoercedNoDup();
+            if (binaryOp.getLeftSide() instanceof DirectValueActionItem) {
+                DirectValueActionItem directValue = (DirectValueActionItem) binaryOp.getLeftSide();
+                if (directValue.value instanceof RegisterNumber) {
+                    if (((RegisterNumber) directValue.value).number == registerNumber) {
+                        ret.setCompoundValue(binaryOp.getRightSide());
+                        ret.setCompoundOperator(binaryOp.getOperator());
+                    }
+                }
+            }
+        }
+
+        stack.push(ret);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,11 +16,13 @@
  */
 package com.jpexs.decompiler.flash.action.model.clauses;
 
+import com.jpexs.decompiler.flash.IdentifiersDeobfuscation;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
 import com.jpexs.decompiler.flash.action.model.ActionItem;
 import com.jpexs.decompiler.flash.action.model.FunctionActionItem;
 import com.jpexs.decompiler.flash.action.model.GetMemberActionItem;
+import com.jpexs.decompiler.flash.action.model.GetVariableActionItem;
 import com.jpexs.decompiler.flash.action.model.SetMemberActionItem;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.parser.script.VariableActionItem;
@@ -30,6 +32,7 @@ import com.jpexs.decompiler.graph.Block;
 import com.jpexs.decompiler.graph.CompilationException;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.model.ContinueItem;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -40,21 +43,42 @@ import java.util.List;
 import java.util.Set;
 
 /**
+ * ActionScript2 class.
  *
  * @author JPEXS
  */
 public class ClassActionItem extends ActionItem implements Block {
 
+    /**
+     * Extends
+     */
     public GraphTargetItem extendsOp;
 
+    /**
+     * Implements
+     */
     public List<GraphTargetItem> implementsOp;
 
+    /**
+     * Class name
+     */
     public GraphTargetItem className;
 
     //public GraphTargetItem constructor;
+
+    /**
+     * Traits
+     */
     public List<MyEntry<GraphTargetItem, GraphTargetItem>> traits;
+
+    /**
+     * Which traits are static
+     */
     public List<Boolean> traitsStatic;
 
+    /**
+     * Uninitialized variables
+     */
     public Set<String> uninitializedVars;
 
     @Override
@@ -64,6 +88,20 @@ public class ClassActionItem extends ActionItem implements Block {
         return ret;
     }
 
+    @Override
+    public void visitNoBlock(GraphTargetVisitorInterface visitor) {
+
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param className Class name
+     * @param extendsOp Extends
+     * @param implementsOp Implements
+     * @param traits Traits
+     * @param traitsStatic Which traits are static
+     */
     public ClassActionItem(GraphTargetItem className, GraphTargetItem extendsOp, List<GraphTargetItem> implementsOp, List<MyEntry<GraphTargetItem, GraphTargetItem>> traits, List<Boolean> traitsStatic) {
         super(null, null, NOPRECEDENCE);
         this.className = className;
@@ -78,7 +116,7 @@ public class ClassActionItem extends ActionItem implements Block {
         for (MyEntry<GraphTargetItem, GraphTargetItem> it : traits) {
             if (it.getValue() instanceof FunctionActionItem) {
                 FunctionActionItem f = (FunctionActionItem) it.getValue();
-                detectUnitializedVars(f.actions, allUsages);
+                detectUninitializedVars(f.actions, allUsages);
             }
         }
         Set<String> allMembers = new HashSet<>();
@@ -101,7 +139,7 @@ public class ClassActionItem extends ActionItem implements Block {
         return false;
     }
 
-    private void detectUnitializedVars(GraphTargetItem item, List<GraphTargetItem> ret) {
+    private void detectUninitializedVars(GraphTargetItem item, List<GraphTargetItem> ret) {
         if (item == null) {
             return;
         }
@@ -110,37 +148,56 @@ public class ClassActionItem extends ActionItem implements Block {
             GetMemberActionItem gm = (GetMemberActionItem) item;
             if (isThis(gm.object)) {
                 ret.add(gm.memberName);
-            } else {
-                detectUnitializedVars(gm.object, ret);
             }
         }
         if (item instanceof SetMemberActionItem) {
             SetMemberActionItem sm = (SetMemberActionItem) item;
             if (isThis(sm.object)) {
                 ret.add(sm.objectName);
-            } else {
-                detectUnitializedVars(sm.object, ret);
             }
         }
 
-        if (item instanceof Block) {
-            Block bl = (Block) item;
-            for (List<GraphTargetItem> list : bl.getSubs()) {
-                detectUnitializedVars(list, ret);
-            }
-        }
-        detectUnitializedVars(item.getAllSubItems(), ret);
+        detectUninitializedVars(item.getAllSubItems(), ret);
     }
 
-    private void detectUnitializedVars(List<GraphTargetItem> items, List<GraphTargetItem> ret) {
+    private void detectUninitializedVars(List<GraphTargetItem> items, List<GraphTargetItem> ret) {
         for (GraphTargetItem it : items) {
-            detectUnitializedVars(it, ret);
+            detectUninitializedVars(it, ret);
+        }
+    }
+
+    private void makePrintObfuscated(GraphTargetItem item) {
+        if (item == null) {
+            return;
+        }
+        GraphTargetItem it = item;
+        while (it instanceof GetMemberActionItem) {
+            GetMemberActionItem m = (GetMemberActionItem) it;
+            m.printObfuscatedMemberName = true;
+            it = m.object;
+        }
+        if (it instanceof GetVariableActionItem) {
+            GetVariableActionItem gv = (GetVariableActionItem) it;
+            gv.printObfuscatedName = true;
         }
     }
 
     @Override
     public GraphTextWriter appendTo(GraphTextWriter writer, LocalData localData) throws InterruptedException {
-        writer.startClass(className.toStringNoQuotes(localData));
+        GraphTargetItem clsName = className;
+        while (clsName instanceof GetMemberActionItem) {
+            ((GetMemberActionItem) clsName).printObfuscatedMemberName = true;
+            clsName = ((GetMemberActionItem) clsName).object;
+        }
+        if (clsName instanceof GetVariableActionItem) {
+            ((GetVariableActionItem) clsName).printObfuscatedName = true;
+        }
+
+        makePrintObfuscated(extendsOp);
+        for (GraphTargetItem im : implementsOp) {
+            makePrintObfuscated(im);
+        }
+
         writer.append("class ");
         className.toStringNoQuotes(writer, localData);
         if (extendsOp != null) {
@@ -159,6 +216,7 @@ public class ClassActionItem extends ActionItem implements Block {
             }
         }
         writer.startBlock();
+        writer.startClass(className.toStringNoQuotes(localData));
 
         /*if (constructor != null) {
             constructor.toString(writer, localData).newLine();
@@ -191,9 +249,11 @@ public class ClassActionItem extends ActionItem implements Block {
                     item.getValue().toString(writer, localData).newLine();
                 } else {
                     writer.append("var ");
-                    item.getKey().toStringNoQuotes(writer, localData);
-                    writer.append(" = ");
-                    item.getValue().toString(writer, localData);
+                    writer.append(IdentifiersDeobfuscation.printIdentifier(false, item.getKey().toStringNoQuotes(localData)));
+                    if (item.getValue() != null) {
+                        writer.append(" = ");
+                        item.getValue().toString(writer, localData);
+                    }
                     writer.append(";").newLine();
                 }
             }
@@ -203,8 +263,8 @@ public class ClassActionItem extends ActionItem implements Block {
             writer.append(v);
             writer.append(";").newLine();
         }
-        writer.endBlock();
         writer.endClass();
+        writer.endBlock();
         return writer;
     }
 
@@ -233,4 +293,15 @@ public class ClassActionItem extends ActionItem implements Block {
     public boolean hasReturnValue() {
         return false;
     }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        for (MyEntry<GraphTargetItem, GraphTargetItem> en : traits) {
+            GraphTargetItem value = en.getValue();
+            if (value != null) {
+                visitor.visit(value);
+            }
+        }
+    }
+
 }

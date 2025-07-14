@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,10 +16,10 @@
  */
 package com.jpexs.decompiler.flash.abc.avm2.parser.script;
 
-import com.jpexs.helpers.Reference;
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.abc.ABC;
 import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
+import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instructions;
 import com.jpexs.decompiler.flash.abc.types.Multiname;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
@@ -30,28 +30,59 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.LocalData;
+import com.jpexs.helpers.Reference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
+ * Namespaced.
  *
  * @author JPEXS
  */
 public class NamespacedAVM2Item extends AssignableAVM2Item {
 
+    /**
+     * Namespace
+     */
     public GraphTargetItem ns;
 
+    /**
+     * Name
+     */
     public String name;
 
+    /**
+     * Name item
+     */
     public GraphTargetItem nameItem;
 
+    /**
+     * Object
+     */
     public GraphTargetItem obj;
 
+    /**
+     * Attribute
+     */
     public boolean attr;
 
+    /**
+     * Opened namespaces
+     */
     public List<NamespaceItem> openedNamespaces;
 
+    /**
+     * Constructor.
+     * @param ns Namespace
+     * @param name Name
+     * @param nameItem Name item
+     * @param obj Object
+     * @param attr Attribute
+     * @param openedNamespaces Opened namespaces
+     * @param storeValue Store value
+     */
     public NamespacedAVM2Item(GraphTargetItem ns, String name, GraphTargetItem nameItem, GraphTargetItem obj, boolean attr, List<NamespaceItem> openedNamespaces, GraphTargetItem storeValue) {
         super(storeValue);
         this.ns = ns;
@@ -105,6 +136,16 @@ public class NamespacedAVM2Item extends AssignableAVM2Item {
          */
         ABC abc = g.abcIndex.getSelectedAbc();
         AVM2ConstantPool constants = abc.constants;
+        
+        AVM2Instruction changeIns;
+        if (isInteger) {
+            changeIns = ins(decrement ? AVM2Instructions.DecrementI : AVM2Instructions.IncrementI);
+        } else if (localData.numberContext != null) {
+            changeIns = ins(decrement ? AVM2Instructions.DecrementP : AVM2Instructions.IncrementP, localData.numberContext);
+        } else {
+            changeIns = ins(decrement ? AVM2Instructions.Decrement : AVM2Instructions.Increment);
+        }
+        
         if (name != null) {
             return toSourceMerge(localData, generator,
                     ns, NameAVM2Item.generateCoerce(localData, generator, new TypeItem(DottedChain.NAMESPACE)),
@@ -118,9 +159,9 @@ public class NamespacedAVM2Item extends AssignableAVM2Item {
                     ins(AVM2Instructions.GetProperty, constants.getMultinameId(Multiname.createMultinameL(false, allNsSet(g.abcIndex)), true)),
                     !isInteger ? ins(AVM2Instructions.ConvertD) : null,
                     //End get original
-                    (!post) ? (decrement ? ins(isInteger ? AVM2Instructions.DecrementI : AVM2Instructions.Decrement) : ins(isInteger ? AVM2Instructions.IncrementI : AVM2Instructions.Increment)) : null,
+                    (!post) ? changeIns : null,
                     needsReturn ? ins(AVM2Instructions.Dup) : null,
-                    (post) ? (decrement ? ins(isInteger ? AVM2Instructions.DecrementI : AVM2Instructions.Decrement) : ins(isInteger ? AVM2Instructions.IncrementI : AVM2Instructions.Increment)) : null,
+                    (post) ? changeIns : null,
                     setTemp(localData, generator, ret_temp),
                     getTemp(localData, generator, name_temp),
                     getTemp(localData, generator, ns_temp),
@@ -148,6 +189,18 @@ public class NamespacedAVM2Item extends AssignableAVM2Item {
         return TypeItem.UNBOUNDED;
     }
 
+    /**
+     * Converts to source.
+     * @param localData Local data
+     * @param generator Generator
+     * @param needsReturn Needs return
+     * @param call Call
+     * @param callargs Call arguments
+     * @param delete Delete
+     * @param construct Construct
+     * @return Source
+     * @throws CompilationException On compilation error
+     */
     public List<GraphSourceItem> toSource(SourceGeneratorLocalData localData, SourceGenerator generator, boolean needsReturn, boolean call, List<GraphTargetItem> callargs, boolean delete, boolean construct) throws CompilationException {
         AVM2SourceGenerator g = (AVM2SourceGenerator) generator;
         Reference<Integer> ns_temp = new Reference<>(-1);
@@ -215,4 +268,50 @@ public class NamespacedAVM2Item extends AssignableAVM2Item {
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         return toSource(localData, generator, false, false, new ArrayList<>(), false, false);
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 59 * hash + Objects.hashCode(this.ns);
+        hash = 59 * hash + Objects.hashCode(this.name);
+        hash = 59 * hash + Objects.hashCode(this.nameItem);
+        hash = 59 * hash + Objects.hashCode(this.obj);
+        hash = 59 * hash + (this.attr ? 1 : 0);
+        hash = 59 * hash + Objects.hashCode(this.openedNamespaces);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final NamespacedAVM2Item other = (NamespacedAVM2Item) obj;
+        if (this.attr != other.attr) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
+            return false;
+        }
+        if (!Objects.equals(this.ns, other.ns)) {
+            return false;
+        }
+        if (!Objects.equals(this.nameItem, other.nameItem)) {
+            return false;
+        }
+        if (!Objects.equals(this.obj, other.obj)) {
+            return false;
+        }
+        if (!Objects.equals(this.openedNamespaces, other.openedNamespaces)) {
+            return false;
+        }
+        return true;
+    }
+
 }

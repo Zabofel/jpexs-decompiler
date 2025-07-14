@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -21,14 +22,17 @@ import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.dumpview.DumpInfoSpecialType;
 import com.jpexs.decompiler.flash.helpers.ImageHelper;
 import com.jpexs.decompiler.flash.tags.base.AloneTag;
+import com.jpexs.decompiler.flash.tags.base.HasSeparateAlphaChannel;
 import com.jpexs.decompiler.flash.tags.base.ImageTag;
 import com.jpexs.decompiler.flash.tags.enums.ImageFormat;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.annotations.SWFType;
 import com.jpexs.decompiler.flash.types.annotations.SWFVersion;
 import com.jpexs.helpers.ByteArrayRange;
+import com.jpexs.helpers.JpegFixer;
 import com.jpexs.helpers.SerializableImage;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.ByteArrayInputStream;
@@ -39,11 +43,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineBitsJPEG4 tag - Contains a JPEG image with alpha channel and deblocking
+ * parameter. (optionally a PNG or GIF without the separate alpha channel)
  *
  * @author JPEXS
  */
 @SWFVersion(from = 10)
-public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
+public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag, HasSeparateAlphaChannel {
 
     public static final int ID = 90;
 
@@ -61,7 +67,7 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineBitsJPEG4Tag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -82,9 +88,9 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineBitsJPEG4Tag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -104,7 +110,7 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -141,10 +147,12 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
         setModified(true);
     }
 
+    @Override
     public byte[] getImageAlpha() throws IOException {
         return SWFInputStream.uncompressByteArray(bitmapAlphaData.getRangeData());
     }
 
+    @Override
     public void setImageAlpha(byte[] data) throws IOException {
         ImageFormat fmt = ImageTag.getImageFormat(imageData);
         if (fmt != ImageFormat.JPEG) {
@@ -159,6 +167,11 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
         bitmapAlphaData = new ByteArrayRange(SWFOutputStream.compressByteArray(data));
         clearCache();
         setModified(true);
+    }
+
+    @Override
+    public boolean hasAlphaChannel() {
+        return bitmapAlphaData.getLength() > 0;
     }
 
     @Override
@@ -177,17 +190,32 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
 
     @Override
     public InputStream getOriginalImageData() {
-        if (bitmapAlphaData.getLength() == 0) { // No alpha
-            return new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength());
-        }
+        //if (bitmapAlphaData.getLength() == 0) { // No alpha
 
-        return null;
+        JpegFixer jpegFixer = new JpegFixer();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            jpegFixer.fixJpeg(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()), baos);
+        } catch (IOException ex) {
+            Logger.getLogger(DefineBitsJPEG4Tag.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return new ByteArrayInputStream(baos.toByteArray());
+        //}
+
+        //return null;
     }
 
     @Override
     protected SerializableImage getImage() {
         try {
-            BufferedImage image = ImageHelper.read(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()));
+            JpegFixer jpegFixer = new JpegFixer();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                jpegFixer.fixJpeg(new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength()), baos);
+            } catch (IOException ex) {
+                Logger.getLogger(DefineBitsJPEG3Tag.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            BufferedImage image = ImageHelper.read(new ByteArrayInputStream(baos.toByteArray()));
             if (image == null) {
                 Logger.getLogger(DefineBitsJPEG4Tag.class.getName()).log(Level.SEVERE, "Failed to load image");
                 return null;
@@ -205,19 +233,40 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
 
             int width = img.getWidth();
             int height = img.getHeight();
-            SerializableImage img2 = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB_PRE);
+            SerializableImage img2 = new SerializableImage(width, height, SerializableImage.TYPE_INT_ARGB);
             int[] pixels = ((DataBufferInt) img.getRaster().getDataBuffer()).getData();
             int[] pixels2 = ((DataBufferInt) img2.getRaster().getDataBuffer()).getData();
             for (int i = 0; i < pixels.length; i++) {
                 int a = alphaData[i] & 0xff;
-                pixels2[i] = (pixels[i] & 0xffffff) | (a << 24);
+                int b = (pixels[i] >> 16) & 0xff;
+                int g = (pixels[i] >> 8) & 0xff;
+                int r = (pixels[i]) & 0xff;
+                r = (int) Math.floor(r * 255.0 / a);
+                g = (int) Math.floor(g * 255.0 / a);
+                b = (int) Math.floor(b * 255.0 / a);
+                if (r > 255) {
+                    r = 255;
+                }
+                if (g > 255) {
+                    g = 255;
+                }
+                if (b > 255) {
+                    b = 255;
+                }
+
+                pixels2[i] = (a << 24) | (b << 16) | (g << 8) | r;
             }
 
             return img2;
         } catch (IOException ex) {
             Logger.getLogger(DefineBitsJPEG4Tag.class.getName()).log(Level.SEVERE, "Failed to get image", ex);
         }
-        return null;
+
+        SerializableImage img = new SerializableImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE);
+        Graphics g = img.getGraphics();
+        g.setColor(SWF.ERROR_COLOR);
+        g.fillRect(0, 0, 1, 1);
+        return img;
     }
 
     @Override
@@ -228,11 +277,11 @@ public class DefineBitsJPEG4Tag extends ImageTag implements AloneTag {
 
         try {
             ByteArrayInputStream bis = new ByteArrayInputStream(imageData.getArray(), imageData.getPos(), imageData.getLength());
-            return ImageHelper.getDimesion(bis);
+            return ImageHelper.getDimension(bis);
         } catch (IOException ex) {
             Logger.getLogger(DefineBitsJPEG3Tag.class.getName()).log(Level.SEVERE, "Failed to get image dimension", ex);
         }
 
-        return null;
+        return new Dimension(1, 1);
     }
 }

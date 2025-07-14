@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,11 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
 import com.jpexs.decompiler.flash.action.Action;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
 import com.jpexs.decompiler.flash.action.parser.script.ActionSourceGenerator;
 import com.jpexs.decompiler.flash.action.swf4.ActionLess;
 import com.jpexs.decompiler.flash.action.swf5.ActionLess2;
@@ -29,18 +31,32 @@ import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
 import com.jpexs.decompiler.graph.model.LogicalOpItem;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Less than.
  *
  * @author JPEXS
  */
 public class LtActionItem extends BinaryOpItem implements LogicalOpItem {
 
+    /**
+     * Version 2 flag
+     */
     boolean version2;
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     * @param version2 Version 2 flag
+     */
     public LtActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide, boolean version2) {
-        super(instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, "<", "", "");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_RELATIONAL, leftSide, rightSide, "<", "", "");
         this.version2 = version2;
     }
 
@@ -49,6 +65,14 @@ public class LtActionItem extends BinaryOpItem implements LogicalOpItem {
         return getResult(rightSide.getResult(), leftSide.getResult(), version2);
     }
 
+    /**
+     * Gets result.
+     *
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @param version2 Version 2 flag
+     * @return Result
+     */
     public static Object getResult(Object rightResult, Object leftResult, boolean version2) {
         if (version2) {
             Object ret = EcmaScript.compare(leftResult, rightResult, true);
@@ -78,5 +102,12 @@ public class LtActionItem extends BinaryOpItem implements LogicalOpItem {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.BOOLEAN;
+    }
+
+    @Override
+    public List<GraphSourceItem> getOperatorInstruction() {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new ActionLess2()); //FIXME!!!
+        return ret;
     }
 }

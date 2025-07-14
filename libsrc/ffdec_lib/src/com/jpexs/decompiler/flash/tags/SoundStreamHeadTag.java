@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
 import com.jpexs.decompiler.flash.tags.base.SoundStreamHeadTypeTag;
+import com.jpexs.decompiler.flash.timeline.SoundStreamFrameRange;
 import com.jpexs.decompiler.flash.timeline.Timeline;
 import com.jpexs.decompiler.flash.types.BasicType;
 import com.jpexs.decompiler.flash.types.annotations.Conditional;
@@ -31,16 +33,17 @@ import com.jpexs.decompiler.flash.types.sound.SoundExportFormat;
 import com.jpexs.decompiler.flash.types.sound.SoundFormat;
 import com.jpexs.helpers.ByteArrayRange;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
+ * SoundStreamHead tag - contains sound stream information for streaming sound.
  *
  * @author JPEXS
  */
 @SWFVersion(from = 1)
-public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
+public class SoundStreamHeadTag extends SoundStreamHeadTypeTag {
 
     public static final int ID = 18;
 
@@ -84,12 +87,12 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
     public int latencySeek;
 
     @Internal
-    private int virtualCharacterId = 0;
+    private int virtualCharacterId = -1;
 
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public SoundStreamHeadTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -98,9 +101,9 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public SoundStreamHeadTag(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -127,7 +130,7 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -148,6 +151,9 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
     @Override
     public SoundExportFormat getExportFormat() {
         if (streamSoundCompression == SoundFormat.FORMAT_MP3) {
+            if (getInitialLatency() > 0 || isMp3HigherThan160Kbps()) {
+                return SoundExportFormat.WAV;
+            }
             return SoundExportFormat.MP3;
         }
         if (streamSoundCompression == SoundFormat.FORMAT_ADPCM) {
@@ -176,11 +182,6 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
     }
 
     @Override
-    public void setVirtualCharacterId(int ch) {
-        virtualCharacterId = ch;
-    }
-
-    @Override
     public long getSoundSampleCount() {
         return streamSoundSampleCount;
     }
@@ -206,34 +207,30 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
     }
 
     @Override
-    public List<SoundStreamBlockTag> getBlocks() {
+    public List<SoundStreamFrameRange> getRanges() {
         Timeline timeline = swf.getTimeline();
-        List<SoundStreamBlockTag> ret = timeline.getSoundStreamBlocks(this);
+        List<SoundStreamFrameRange> ret = timeline.getSoundStreamBlocks(this);
         return ret;
-
     }
 
     @Override
     public boolean importSupported() {
-        return false;
-    }
-
-    @Override
-    public boolean setSound(InputStream is, int newSoundFormat) {
-        return false;
+        return true;
     }
 
     @Override
     public List<ByteArrayRange> getRawSoundData() {
         List<ByteArrayRange> ret = new ArrayList<>();
-        List<SoundStreamBlockTag> blocks = getBlocks();
-        if (blocks != null) {
-            for (SoundStreamBlockTag block : blocks) {
-                ByteArrayRange data = block.streamSoundData;
-                if (streamSoundCompression == SoundFormat.FORMAT_MP3) {
-                    ret.add(data.getSubRange(4, data.getLength() - 4));
-                } else {
-                    ret.add(data);
+        List<SoundStreamFrameRange> frameRanges = getRanges();
+        if (frameRanges != null) {
+            for (SoundStreamFrameRange range : frameRanges) {
+                for (SoundStreamBlockTag block : range.blocks) {
+                    ByteArrayRange data = block.streamSoundData;
+                    if (streamSoundCompression == SoundFormat.FORMAT_MP3) {
+                        ret.add(data.getSubRange(4, data.getLength() - 4));
+                    } else {
+                        ret.add(data);
+                    }
                 }
             }
         }
@@ -242,7 +239,11 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
 
     @Override
     public long getTotalSoundSampleCount() {
-        return getBlocks().size() * streamSoundSampleCount;
+        int blockCount = 0;
+        for (SoundStreamFrameRange range : getRanges()) {
+            blockCount += range.blocks.size();
+        }
+        return blockCount * streamSoundSampleCount;
     }
 
     @Override
@@ -266,5 +267,53 @@ public class SoundStreamHeadTag extends Tag implements SoundStreamHeadTypeTag {
         tagInfo.addInfo("general", "samplingRate", soundFormat.samplingRate);
         tagInfo.addInfo("general", "stereo", soundFormat.stereo);
         tagInfo.addInfo("general", "sampleCount", streamSoundSampleCount);
+    }
+
+    @Override
+    public Map<String, String> getNameProperties() {
+        Map<String, String> ret = super.getNameProperties();
+        ret.put("cid", "" + virtualCharacterId);
+        return ret;
+    }
+
+    @Override
+    public String getUniqueId() {
+        return "" + virtualCharacterId;
+    }
+
+    //getNeededCharacters intentionally not defined
+    @Override
+    public void setSoundSize(boolean soundSize) {
+        this.streamSoundSize = soundSize;
+    }
+
+    @Override
+    public void setSoundType(boolean soundType) {
+        this.streamSoundType = soundType;
+    }
+
+    @Override
+    public void setSoundSampleCount(long soundSampleCount) {
+        this.streamSoundSampleCount = (int) soundSampleCount;
+    }
+
+    @Override
+    public void setSoundCompression(int soundCompression) {
+        this.streamSoundCompression = soundCompression;
+    }
+
+    @Override
+    public void setSoundRate(int soundRate) {
+        this.streamSoundRate = soundRate;
+    }
+
+    @Override
+    public String getFlaExportName() {
+        return "sound" + getCharacterId();
+    }
+
+    @Override
+    public int getInitialLatency() {
+        return latencySeek;
     }
 }

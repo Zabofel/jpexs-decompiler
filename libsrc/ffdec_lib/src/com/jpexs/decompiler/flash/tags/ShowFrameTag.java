@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags;
 
 import com.jpexs.decompiler.flash.SWF;
@@ -24,7 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Instructs Flash Player to display the contents of the display list
+ * ShowFrame tag - Instructs Flash Player to display the contents of the display
+ * list.
  *
  * @author JPEXS
  */
@@ -56,7 +58,7 @@ public class ShowFrameTag extends Tag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public ShowFrameTag(SWF swf) {
         super(swf, ID, NAME, null);
@@ -65,8 +67,8 @@ public class ShowFrameTag extends Tag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
+     * @param sis SWF input stream
+     * @param data Data bytes
      */
     public ShowFrameTag(SWFInputStream sis, ByteArrayRange data) {
         super(sis.getSwf(), ID, NAME, data);

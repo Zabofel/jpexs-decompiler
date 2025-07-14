@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.construction;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -41,11 +42,15 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
+ * construct instruction - Construct a new object.
  *
  * @author JPEXS
  */
 public class ConstructIns extends InstructionDefinition {
 
+    /**
+     * Constructor
+     */
     public ConstructIns() {
         super(0x42, "construct", new int[]{AVM2Code.DAT_ARG_COUNT}, true);
     }
@@ -75,17 +80,29 @@ public class ConstructIns extends InstructionDefinition {
     }
 
     public static boolean walkXML(GraphTargetItem item, List<GraphTargetItem> list) {
-        boolean ret = true;
-        if (item instanceof StringAVM2Item) {
-            list.add(item);
-        } else if (item instanceof AddAVM2Item) {
-            ret = ret && walkXML(((AddAVM2Item) item).leftSide, list);
-            ret = ret && walkXML(((AddAVM2Item) item).rightSide, list);
+        boolean ret = walkXMLSub(item, list);
+        if (list.size() == 1 && (list.get(0) instanceof StringAVM2Item)) {
+            return true;
+        }
+        return ret;
+    }
+
+    public static boolean walkXMLSub(GraphTargetItem item, List<GraphTargetItem> list) {
+        boolean ret = false;
+        if (item instanceof AddAVM2Item) {
+            if (walkXMLSub(((AddAVM2Item) item).leftSide, list)) {
+                ret = true;
+            }
+            if (walkXMLSub(((AddAVM2Item) item).rightSide, list)) {
+                ret = true;
+            }
         } else if ((item instanceof EscapeXElemAVM2Item) || (item instanceof EscapeXAttrAVM2Item)) {
+            ret = true;
             list.add(item);
         } else {
-            return false;
+            list.add(item);
         }
+
         return ret;
     }
 
@@ -106,8 +123,8 @@ public class ConstructIns extends InstructionDefinition {
                 FullMultinameAVM2Item fptXmlMult = (FullMultinameAVM2Item) fpt.propertyName;
                 FullMultinameAVM2Item gptXmlMult = (FullMultinameAVM2Item) gpt.propertyName;
 
-                isXML = fptXmlMult.isXML(localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)
-                        && gptXmlMult.isXML(localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames);
+                isXML = fptXmlMult.isXML(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)
+                        && gptXmlMult.isXML(localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods);
             }
         }
         if (obj instanceof GetLexAVM2Item) {
@@ -134,8 +151,8 @@ public class ConstructIns extends InstructionDefinition {
                 FullMultinameAVM2Item fptRegExpMult = (FullMultinameAVM2Item) fpt.propertyName;
                 FullMultinameAVM2Item gptRegExpMult = (FullMultinameAVM2Item) gpt.propertyName;
 
-                isRegExp = fptRegExpMult.isTopLevel("RegExp", localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames)
-                        && gptRegExpMult.isTopLevel("RegExp", localData.getConstants(), localData.localRegNames, localData.fullyQualifiedNames);
+                isRegExp = fptRegExpMult.isTopLevel("RegExp", localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods)
+                        && gptRegExpMult.isTopLevel("RegExp", localData.abc, localData.localRegNames, localData.fullyQualifiedNames, localData.seenMethods);
             }
         }
         if (obj instanceof GetLexAVM2Item) {

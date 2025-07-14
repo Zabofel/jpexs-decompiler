@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,10 +23,10 @@ import java.awt.Dimension;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.lang.reflect.Field;
+import java.util.Objects;
 import javax.swing.JTextArea;
 
 /**
- *
  * @author JPEXS
  */
 public class StringEditor extends JTextArea implements GenericTagEditor {
@@ -91,12 +91,18 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
     }
 
     @Override
-    public void save() {
+    public boolean save() {
         try {
+            String oldValue = (String) ReflectionTools.getValue(obj, field, index);
+            String newValue = getText();
+            if (Objects.equals(oldValue, newValue)) {
+                return false;
+            }
             ReflectionTools.setValue(obj, field, index, getText());
-        } catch (IllegalAccessException ex) {
+        } catch (IllegalArgumentException | IllegalAccessException ex) {
             // ignore
         }
+        return true;
     }
 
     @Override
@@ -140,4 +146,14 @@ public class StringEditor extends JTextArea implements GenericTagEditor {
     @Override
     public void validateValue() {
     }
+
+    @Override
+    public Object getObject() {
+        return obj;
+    }
+    
+    @Override
+    public void setValueNormalizer(ValueNormalizer normalizer) {
+    
+    }  
 }

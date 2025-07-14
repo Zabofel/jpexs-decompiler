@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,11 +19,13 @@ package com.jpexs.decompiler.flash.gui;
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.configuration.Configuration;
 import com.jpexs.decompiler.flash.gui.helpers.TableLayoutHelper;
+import com.jpexs.decompiler.flash.tags.DefineFontTag;
 import com.jpexs.decompiler.flash.tags.Tag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
 import com.jpexs.decompiler.flash.tags.base.TextTag;
 import com.jpexs.decompiler.flash.treeitems.TreeItem;
 import com.jpexs.helpers.Helper;
+import com.jpexs.helpers.utf8.Utf8Helper;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -51,7 +53,6 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -63,10 +64,9 @@ import javax.swing.filechooser.FileFilter;
 import layout.TableLayout;
 
 /**
- *
  * @author JPEXS
  */
-public class FontPanel extends JPanel {
+public class FontPanel extends JPanel implements TagEditorPanel {
 
     private final MainPanel mainPanel;
 
@@ -80,6 +80,7 @@ public class FontPanel extends JPanel {
     public FontPanel(MainPanel mainPanel) {
         this.mainPanel = mainPanel;
         initComponents();
+        setEditable(false);
     }
 
     public FontTag getFontTag() {
@@ -108,23 +109,53 @@ public class FontPanel extends JPanel {
         return new DefaultComboBoxModel<>(new Vector<>(faceSet));
     }
 
+    @Override
+    public boolean isEditing() {
+        return saveButton.isVisible();
+    }
+
     private void setEditable(boolean editable) {
         if (editable) {
-            buttonEdit.setVisible(false);
-            buttonSave.setVisible(true);
-            buttonCancel.setVisible(true);
+            editButton.setVisible(false);
+            saveButton.setVisible(true);
+            cancelButton.setVisible(true);
             if (fontTag.isBoldEditable()) {
                 fontIsBoldCheckBox.setEnabled(true);
             }
             if (fontTag.isItalicEditable()) {
                 fontIsItalicCheckBox.setEnabled(true);
             }
+            if (fontTag.isFontNameInTagEditable()) {
+                fontNameIntagTextField.setVisible(true);
+                fontNameIntagLabel.setVisible(false);
+            }
+
+            boolean layoutEditable = (fontTag.hasLayout() || fontTag.getCharacterCount() == 0) && (!(fontTag instanceof DefineFontTag));
+
+            if (layoutEditable) {
+                fontAscentTextField.setVisible(true);
+                fontAscentLabel.setVisible(false);
+
+                fontDescentTextField.setVisible(true);
+                fontDescentLabel.setVisible(false);
+
+                fontLeadingTextField.setVisible(true);
+                fontLeadingLabel.setVisible(false);
+            }
         } else {
-            buttonEdit.setVisible(true);
-            buttonSave.setVisible(false);
-            buttonCancel.setVisible(false);
+            editButton.setVisible(true);
+            saveButton.setVisible(false);
+            cancelButton.setVisible(false);
             fontIsBoldCheckBox.setEnabled(false);
             fontIsItalicCheckBox.setEnabled(false);
+            fontNameIntagTextField.setVisible(false);
+            fontNameIntagLabel.setVisible(true);
+            fontAscentTextField.setVisible(false);
+            fontAscentLabel.setVisible(true);
+            fontDescentTextField.setVisible(false);
+            fontDescentLabel.setVisible(true);
+            fontLeadingTextField.setVisible(false);
+            fontLeadingLabel.setVisible(true);
         }
     }
 
@@ -133,16 +164,24 @@ public class FontPanel extends JPanel {
     }
 
     private void fontAddChars(FontTag ft, Set<Integer> selChars, Font font) {
-        FontTag f = (FontTag) mainPanel.tagTree.getCurrentTreeItem();
+        FontTag f = (FontTag) mainPanel.getCurrentTree().getCurrentTreeItem();
         String oldchars = f.getCharacters();
         for (int ic : selChars) {
             char c = (char) ic;
             if (oldchars.indexOf((int) c) == -1) {
-                font = font.deriveFont(f.getFontStyle(), 1024);
+                if (font.getSize() != 1024) { //Do not resize if not required so we can have single instance of custom fonts
+                    font = font.deriveFont(f.getFontStyle(), 1024);
+                }
+                if (Utf8Helper.charToCodePoint(c, ft.getCodesCharset()) == -1) {
+                    String msg = translate("error.charset.nocharacter").replace("%char%", "" + c);
+                    Logger.getLogger(FontPanel.class.getName()).log(Level.SEVERE, msg);
+                    ViewMessages.showMessageDialog(FontPanel.this, msg, translate("error"), JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
                 if (!font.canDisplay(c)) {
                     String msg = translate("error.font.nocharacter").replace("%char%", "" + c);
                     Logger.getLogger(FontPanel.class.getName()).log(Level.SEVERE, msg);
-                    View.showMessageDialog(null, msg, translate("error"), JOptionPane.ERROR_MESSAGE);
+                    ViewMessages.showMessageDialog(FontPanel.this, msg, translate("error"), JOptionPane.ERROR_MESSAGE);
                     return;
                 }
             }
@@ -152,12 +191,13 @@ public class FontPanel extends JPanel {
         boolean yestoall = false;
         boolean notoall = false;
         boolean replaced = false;
+        int numAdded = 0;
         for (int ic : selChars) {
             char c = (char) ic;
             if (oldchars.indexOf((int) c) > -1) {
                 int opt = -1;
                 if (!(yestoall || notoall)) {
-                    opt = View.showOptionDialog(null, translate("message.font.add.exists").replace("%char%", "" + c), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, yesno, translate("button.yes"));
+                    opt = ViewMessages.showOptionDialog(FontPanel.this, translate("message.font.add.exists").replace("%char%", "" + c), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, yesno, translate("button.yes"));
                     if (opt == 2) {
                         yestoall = true;
                     }
@@ -179,13 +219,17 @@ public class FontPanel extends JPanel {
                 replaced = true;
             }
 
-            f.addCharacter(c, font);
+            if (!f.addCharacter(c, font)) {
+                ViewMessages.showMessageDialog(mainPanel, AppStrings.translate("error.font.cannotaddcharacter").replace("%numchars%", "" + numAdded), AppStrings.translate("error"), JOptionPane.ERROR_MESSAGE);
+                break;
+            }
+            numAdded++;
             oldchars += c;
         }
 
         if (replaced) {
-            if (View.showConfirmDialog(null, translate("message.font.replace.updateTexts"), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE) == JOptionPane.YES_OPTION) {
-                int fontId = ft.getFontId();
+            if (ViewMessages.showConfirmDialog(FontPanel.this, translate("message.font.replace.updateTexts"), translate("message.warning"), JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE) == JOptionPane.YES_OPTION) {
+                int fontId = ft.getCharacterId();
                 SWF swf = ft.getSwf();
                 for (Tag tag : swf.getTags()) {
                     if (tag instanceof TextTag) {
@@ -201,7 +245,7 @@ public class FontPanel extends JPanel {
     }
 
     private void fontRemoveChars(FontTag ft, Set<Integer> selChars) {
-        FontTag f = (FontTag) mainPanel.tagTree.getCurrentTreeItem();
+        FontTag f = (FontTag) mainPanel.getCurrentTree().getCurrentTreeItem();
 
         for (int ic : selChars) {
             char c = (char) ic;
@@ -213,17 +257,25 @@ public class FontPanel extends JPanel {
         SWF swf = ft.getSwf();
         fontTag = ft;
         fontNameIntagLabel.setText(ft.getFontNameIntag());
+        fontNameIntagTextField.setText(ft.getFontNameIntag());
         fontNameTextArea.setText(ft.getFontName());
         fontCopyrightTextArea.setText(ft.getFontCopyright());
 
         fontIsBoldCheckBox.setSelected(ft.isBold());
         fontIsItalicCheckBox.setSelected(ft.isItalic());
-        fontDescentLabel.setText(ft.getDescent() == -1 ? translate("value.unknown") : Integer.toString(ft.getDescent()));
         fontAscentLabel.setText(ft.getAscent() == -1 ? translate("value.unknown") : Integer.toString(ft.getAscent()));
+        fontAscentTextField.setText(ft.getAscent() == -1 ? "0" : "" + ft.getAscent());
+        fontDescentLabel.setText(ft.getDescent() == -1 ? translate("value.unknown") : Integer.toString(ft.getDescent()));
+        fontDescentTextField.setText(ft.getDescent() == -1 ? "0" : "" + ft.getDescent());
         fontLeadingLabel.setText(ft.getLeading() == -1 ? translate("value.unknown") : Integer.toString(ft.getLeading()));
+        fontLeadingTextField.setText(ft.getLeading() == -1 ? "0" : "" + ft.getLeading());
         String chars = ft.getCharacters();
         fontCharactersTextArea.setText(chars);
-        fontCharactersScrollPane.getVerticalScrollBar().scrollRectToVisible(new Rectangle(0, 0, 1, 1));
+        try {
+            fontCharactersScrollPane.getVerticalScrollBar().scrollRectToVisible(new Rectangle(0, 0, 1, 1));
+        } catch (Exception ex) {
+            //ignore
+        }
         setAllowSave(false);
 
         Font selFont = ft.getSystemFont();
@@ -235,20 +287,21 @@ public class FontPanel extends JPanel {
         boolean readOnly = ((Tag) ft).isReadOnly();
         if (readOnly) {
             addCharsPanel.setVisible(false);
-            buttonEdit.setVisible(false);
+            editButton.setVisible(false);
         }
     }
 
     private void initComponents() {
 
-        contentScrollPane = new JScrollPane();
+        contentScrollPane = new FasterScrollPane();
         addCharsPanel = new JPanel();
         fontParamsPanel = new JPanel();
+        fontNameIntagTextField = new JTextField(30);
         fontNameIntagLabel = new JLabel();
-        JScrollPane fontDisplayNameScrollPane = new JScrollPane();
+        JScrollPane fontDisplayNameScrollPane = new FasterScrollPane();
         fontNameTextArea = new JTextArea();
         JLabel jLabel3 = new JLabel();
-        JScrollPane fontCopyrightScrollPane = new JScrollPane();
+        JScrollPane fontCopyrightScrollPane = new FasterScrollPane();
         fontCopyrightTextArea = new JTextArea();
         JLabel jLabel4 = new JLabel();
         fontIsBoldCheckBox = new JCheckBox();
@@ -256,12 +309,15 @@ public class FontPanel extends JPanel {
         fontIsItalicCheckBox = new JCheckBox();
         JLabel jLabel6 = new JLabel();
         fontAscentLabel = new JLabel();
+        fontAscentTextField = new JTextField(30);
         JLabel jLabel7 = new JLabel();
         fontDescentLabel = new JLabel();
+        fontDescentTextField = new JTextField(30);
         JLabel jLabel8 = new JLabel();
         fontLeadingLabel = new JLabel();
+        fontLeadingTextField = new JTextField(30);
         JLabel jLabel9 = new JLabel();
-        fontCharactersScrollPane = new JScrollPane();
+        fontCharactersScrollPane = new FasterScrollPane();
         fontCharactersTextArea = new JTextArea();
         JLabel fontCharsAddLabel = new JLabel();
         fontAddCharactersField = new JTextField();
@@ -271,11 +327,11 @@ public class FontPanel extends JPanel {
         fontFamilyNameSelection = new JComboBox<>();
         fontFaceSelection = new JComboBox<>();
         fontEmbedButton = new JButton();
-        buttonEdit = new JButton();
-        buttonSave = new JButton();
-        buttonCancel = new JButton();
-        buttonPreviewFont = new JButton();
-        buttonSetAdvanceValues = new JButton();
+        editButton = new JButton();
+        saveButton = new JButton();
+        cancelButton = new JButton();
+        previewFontButton = new JButton();
+        setAdvanceValuesButton = new JButton();
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent evt) {
@@ -290,17 +346,26 @@ public class FontPanel extends JPanel {
         TableLayout tlFontParamsPanel;
         fontParamsPanel.setLayout(tlFontParamsPanel = new TableLayout(new double[][]{
             {TableLayout.PREFERRED, TableLayout.FILL},
-            {TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.FILL,}
+            {TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.PREFERRED, TableLayout.FILL}
         }));
 
         JLabel fontNameIntagLabLabel = new JLabel();
         fontNameIntagLabLabel.setText(AppStrings.translate("font.name.intag"));
         fontParamsPanel.add(fontNameIntagLabLabel, "0,0,R");
 
+        fontNameIntagTextField.setText(AppStrings.translate("value.unknown"));
+        //fontNameIntagTextField.setMinimumSize(new Dimension(100, fontNameIntagTextField.getMinimumSize().height));
+        //fontNameIntagTextField.setPreferredSize(new Dimension(250, fontNameIntagTextField.getPreferredSize().height));
+
         fontNameIntagLabel.setText(AppStrings.translate("value.unknown"));
         fontNameIntagLabel.setMinimumSize(new Dimension(100, fontNameIntagLabel.getMinimumSize().height));
         fontNameIntagLabel.setPreferredSize(new Dimension(250, fontNameIntagLabel.getPreferredSize().height));
-        fontParamsPanel.add(fontNameIntagLabel, "1,0");
+
+        JPanel fontNamePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        fontNamePanel.add(fontNameIntagTextField);
+        fontNamePanel.add(fontNameIntagLabel);
+        fontNameIntagTextField.setVisible(false);
+        fontParamsPanel.add(fontNamePanel, "1,0");
 
         JLabel fontNameNameLabLabel = new JLabel();
         fontNameNameLabLabel.setText(AppStrings.translate("font.name"));
@@ -359,19 +424,37 @@ public class FontPanel extends JPanel {
         fontParamsPanel.add(jLabel6, "0,5,R");
 
         fontAscentLabel.setText(AppStrings.translate("value.unknown"));
-        fontParamsPanel.add(fontAscentLabel, "1,5");
+
+        JPanel fontAscentPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        fontAscentPanel.add(fontAscentLabel);
+        fontAscentPanel.add(fontAscentTextField);
+        fontAscentTextField.setVisible(false);
+
+        fontParamsPanel.add(fontAscentPanel, "1,5");
 
         jLabel7.setText(AppStrings.translate("font.descent"));
         fontParamsPanel.add(jLabel7, "0,6,R");
 
         fontDescentLabel.setText(AppStrings.translate("value.unknown"));
-        fontParamsPanel.add(fontDescentLabel, "1,6");
+
+        JPanel fontDescentPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        fontDescentPanel.add(fontDescentLabel);
+        fontDescentPanel.add(fontDescentTextField);
+        fontDescentTextField.setVisible(false);
+
+        fontParamsPanel.add(fontDescentPanel, "1,6");
 
         jLabel8.setText(AppStrings.translate("font.leading"));
         fontParamsPanel.add(jLabel8, "0,7,R");
 
         fontLeadingLabel.setText(AppStrings.translate("value.unknown"));
-        fontParamsPanel.add(fontLeadingLabel, "1,7");
+
+        JPanel fontLeadingPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        fontLeadingPanel.add(fontLeadingLabel);
+        fontLeadingPanel.add(fontLeadingTextField);
+        fontLeadingTextField.setVisible(false);
+
+        fontParamsPanel.add(fontLeadingPanel, "1,7");
 
         jLabel9.setText(AppStrings.translate("font.characters"));
         fontParamsPanel.add(jLabel9, "0,8,R,T");
@@ -423,23 +506,23 @@ public class FontPanel extends JPanel {
         fontEmbedButton.setText(AppStrings.translate("button.font.embed"));
         fontEmbedButton.addActionListener(this::fontEmbedButtonActionPerformed);
 
-        buttonEdit.setIcon(View.getIcon("edit16"));
-        buttonEdit.setText(AppStrings.translate("button.edit"));
-        buttonEdit.addActionListener(this::buttonEditActionPerformed);
+        editButton.setIcon(View.getIcon("edit16"));
+        editButton.setText(AppStrings.translate("button.edit"));
+        editButton.addActionListener(this::editButtonActionPerformed);
 
-        buttonSave.setIcon(View.getIcon("save16"));
-        buttonSave.setText(AppStrings.translate("button.save"));
-        buttonSave.addActionListener(this::buttonSaveActionPerformed);
+        saveButton.setIcon(View.getIcon("save16"));
+        saveButton.setText(AppStrings.translate("button.save"));
+        saveButton.addActionListener(this::saveButtonActionPerformed);
 
-        buttonCancel.setIcon(View.getIcon("cancel16"));
-        buttonCancel.setText(AppStrings.translate("button.cancel"));
-        buttonCancel.addActionListener(this::buttonCancelActionPerformed);
+        cancelButton.setIcon(View.getIcon("cancel16"));
+        cancelButton.setText(AppStrings.translate("button.cancel"));
+        cancelButton.addActionListener(this::cancelButtonActionPerformed);
 
-        buttonPreviewFont.setText(AppStrings.translate("button.preview"));
-        buttonPreviewFont.addActionListener(this::buttonPreviewFontActionPerformed);
+        previewFontButton.setText(AppStrings.translate("button.preview"));
+        previewFontButton.addActionListener(this::previewButtonFontActionPerformed);
 
-        buttonSetAdvanceValues.setText(AppStrings.translate("button.setAdvanceValues"));
-        buttonSetAdvanceValues.addActionListener(this::buttonSetAdvanceValuesActionPerformed);
+        setAdvanceValuesButton.setText(AppStrings.translate("button.setAdvanceValues"));
+        setAdvanceValuesButton.addActionListener(this::setAdvanceValuesButtonActionPerformed);
 
         TableLayout tlAddCharsPanel;
         addCharsPanel.setLayout(tlAddCharsPanel = new TableLayout(new double[][]{
@@ -457,13 +540,13 @@ public class FontPanel extends JPanel {
         addCharsPanel.add(fontSourceLabel, "0,1,R");
         addCharsPanel.add(fontFamilyNameSelection, "1,1");
         addCharsPanel.add(fontFaceSelection, "2,1");
-        addCharsPanel.add(buttonPreviewFont, "3,1");
-        addCharsPanel.add(buttonSetAdvanceValues, "4,1");
+        addCharsPanel.add(previewFontButton, "3,1");
+        addCharsPanel.add(setAdvanceValuesButton, "4,1");
 
         JPanel buttonsPanel = new JPanel(new FlowLayout());
-        buttonsPanel.add(buttonEdit);
-        buttonsPanel.add(buttonSave);
-        buttonsPanel.add(buttonCancel);
+        buttonsPanel.add(editButton);
+        buttonsPanel.add(saveButton);
+        buttonsPanel.add(cancelButton);
 
         TableLayout tlAll;
         contentPanel.setLayout(tlAll = new TableLayout(new double[][]{
@@ -497,7 +580,7 @@ public class FontPanel extends JPanel {
     private void fontAddCharsButtonActionPerformed(ActionEvent evt) {
         String newchars = fontAddCharactersField.getText();
 
-        TreeItem item = mainPanel.tagTree.getCurrentTreeItem();
+        TreeItem item = mainPanel.getCurrentTree().getCurrentTreeItem();
         if (item instanceof FontTag) {
             FontTag ft = (FontTag) item;
             Set<Integer> selChars = new TreeSet<>();
@@ -516,7 +599,7 @@ public class FontPanel extends JPanel {
     private void fontRemoveCharsButtonActionPerformed(ActionEvent evt) {
         String newchars = fontAddCharactersField.getText();
 
-        TreeItem item = mainPanel.tagTree.getCurrentTreeItem();
+        TreeItem item = mainPanel.getCurrentTree().getCurrentTreeItem();
         if (item instanceof FontTag) {
             FontTag ft = (FontTag) item;
             Set<Integer> selChars = new TreeSet<>();
@@ -532,22 +615,50 @@ public class FontPanel extends JPanel {
         }
     }
 
-    private void fontEmbedButtonActionPerformed(ActionEvent evt) {
-        TreeItem item = mainPanel.tagTree.getCurrentTreeItem();
-        if (item instanceof FontTag) {
-            FontTag ft = (FontTag) item;
-            FontEmbedDialog fed = new FontEmbedDialog((FontFace) fontFaceSelection.getSelectedItem(), fontAddCharactersField.getText());
-            if (fed.showDialog() == AppDialog.OK_OPTION) {
-                Set<Integer> selChars = fed.getSelectedChars();
-                if (!selChars.isEmpty()) {
-                    Font selFont = fed.getSelectedFont();
-                    fontFamilyNameSelection.setSelectedItem(new FontFamily(selFont));
-                    fontFaceSelection.setSelectedItem(new FontFace(selFont));
-                    fontAddChars(ft, selChars, selFont);
-                    fontAddCharactersField.setText("");
-                    mainPanel.reload(true);
+    public boolean fontEmbed(TreeItem item, boolean create) {
+        if (item == null) {
+            return false;
+        }
+        FontTag ft = (FontTag) item;
+        FontEmbedDialog fed = new FontEmbedDialog(Main.getDefaultDialogsOwner(), ft.hasLayout() || ft.getCharacterCount() == 0, (FontFace) fontFaceSelection.getSelectedItem(), fontAddCharactersField.getText(), create);
+        if (fed.showDialog() == AppDialog.OK_OPTION) {
+            Set<Integer> selChars = fed.getSelectedChars();
+            if (!selChars.isEmpty() || fed.isImportAscentDescentLeading()) {
+                if (ft.getCharacterCount() == 0) {
+                    ft.setHasLayout(true);
                 }
+                Font selFont = fed.getSelectedFont();
+                fontFamilyNameSelection.setSelectedItem(new FontFamily(selFont));
+                fontFaceSelection.setSelectedItem(new FontFace(selFont));
+                fontAddChars(ft, selChars, selFont);
+                if (fed.isImportAscentDescentLeading()) {
+                    Font adlFont = selFont;
+                    if (selFont.getSize() != 1024) {
+                        adlFont = selFont.deriveFont(1024f);
+                    }
+                    ft.setAscent((int) (ft.getDivider() * this.getFontMetrics(adlFont).getAscent()));
+                    ft.setDescent((int) (ft.getDivider() * this.getFontMetrics(adlFont).getDescent()));
+                    int leading = this.getFontMetrics(adlFont).getAscent() + this.getFontMetrics(adlFont).getDescent() - 1024;
+                    ft.setLeading((int) (ft.getDivider() * leading));
+                }
+                if (create) {
+                    ft.setFontNameIntag(fed.getCreateFontName());
+                    ft.setBold(fed.isBold());
+                    ft.setItalic(fed.isItalic());
+                }
+                fontAddCharactersField.setText("");
+                ft.setModified(true);
+                mainPanel.reload(true);
+                return true;
             }
+        }
+        return false;
+    }
+
+    private void fontEmbedButtonActionPerformed(ActionEvent evt) {
+        TreeItem item = mainPanel.getCurrentTree().getCurrentTreeItem();
+        if (item instanceof FontTag) {
+            fontEmbed(item, false);
         }
     }
 
@@ -561,13 +672,13 @@ public class FontPanel extends JPanel {
         if (!allowSave) {
             return;
         }
-        TreeItem item = mainPanel.tagTree.getCurrentTreeItem();
+        TreeItem item = mainPanel.getCurrentTree().getCurrentTreeItem();
         if (item instanceof FontTag) {
             FontTag f = (FontTag) item;
             SWF swf = f.getSwf();
             String selectedName = ((FontFace) fontFaceSelection.getSelectedItem()).font.getFontName(Locale.ENGLISH);
-            swf.sourceFontNamesMap.put(f.getFontId(), selectedName);
-            Configuration.addFontPair(swf.getShortFileName(), f.getFontId(), f.getFontNameIntag(), selectedName);
+            swf.sourceFontNamesMap.put(f.getCharacterId(), selectedName);
+            Configuration.addFontPair(swf.getShortPathTitle(), f.getCharacterId(), f.getFontNameIntag(), selectedName);
         }
     }
 
@@ -581,31 +692,69 @@ public class FontPanel extends JPanel {
         savePair();
     }
 
-    private void buttonEditActionPerformed(ActionEvent evt) {
+    private void editButtonActionPerformed(ActionEvent evt) {
         setEditable(true);
+        mainPanel.setEditingStatus();
     }
 
-    private void buttonSaveActionPerformed(ActionEvent evt) {
+    private void saveButtonActionPerformed(ActionEvent evt) {
+
+        if (!(fontTag instanceof DefineFontTag)) {
+            if (fontTag.getCharacterCount() == 0 && !fontTag.hasLayout()) {
+                fontTag.setHasLayout(true);
+            }
+            if (fontTag.hasLayout()) {
+
+                try {
+                    int ascent = Integer.parseInt(fontAscentTextField.getText());
+                    int descent = Integer.parseInt(fontDescentTextField.getText());
+                    int leading = Integer.parseInt(fontLeadingTextField.getText());
+                    if (ascent < 0 || descent < 0) {
+                        return;
+                    }
+                    fontTag.setAscent(ascent);
+                    fontTag.setDescent(descent);
+                    fontTag.setLeading(leading);
+
+                    fontAscentLabel.setText("" + ascent);
+                    fontDescentLabel.setText("" + descent);
+                    fontLeadingLabel.setText("" + leading);
+                } catch (NumberFormatException nfe) {
+                    return;
+                }
+            }
+        }
+
         if (fontTag.isBoldEditable()) {
             fontTag.setBold(fontIsBoldCheckBox.isSelected());
         }
         if (fontTag.isItalicEditable()) {
             fontTag.setItalic(fontIsItalicCheckBox.isSelected());
         }
+        if (fontTag.isFontNameInTagEditable()) {
+            fontTag.setFontNameIntag(fontNameIntagTextField.getText());
+            fontNameIntagLabel.setText(fontNameIntagTextField.getText());
+
+        }
+
+        mainPanel.getCurrentTree().repaint();
+        fontTag.setModified(true);
         setEditable(false);
+        mainPanel.clearEditingStatus();
     }
 
-    private void buttonCancelActionPerformed(ActionEvent evt) {
+    private void cancelButtonActionPerformed(ActionEvent evt) {
         showFontTag(fontTag);
         setEditable(false);
+        mainPanel.clearEditingStatus();
     }
 
-    private void buttonPreviewFontActionPerformed(ActionEvent evt) {
+    private void previewButtonFontActionPerformed(ActionEvent evt) {
         new FontPreviewDialog(null, true, ((FontFace) fontFaceSelection.getSelectedItem()).font).setVisible(true);
     }
 
-    private void buttonSetAdvanceValuesActionPerformed(ActionEvent evt) {
-        if (View.showConfirmDialog(null, AppStrings.translate("message.font.setadvancevalues"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.showSetAdvanceValuesMessage, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
+    private void setAdvanceValuesButtonActionPerformed(ActionEvent evt) {
+        if (ViewMessages.showConfirmDialog(FontPanel.this, AppStrings.translate("message.font.setadvancevalues"), AppStrings.translate("message.warning"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, Configuration.showSetAdvanceValuesMessage, JOptionPane.OK_OPTION) == JOptionPane.OK_OPTION) {
             fontTag.setAdvanceValues(((FontFace) fontFaceSelection.getSelectedItem()).font);
         }
     }
@@ -615,7 +764,7 @@ public class FontPanel extends JPanel {
     }
 
     private void importTTFButtonActionPerformed(ActionEvent evt) {
-        TreeItem item = mainPanel.tagTree.getCurrentTreeItem();
+        TreeItem item = mainPanel.getCurrentTree().getCurrentTreeItem();
         if (item instanceof FontTag) {
             FontTag ft = (FontTag) item;
 
@@ -635,9 +784,7 @@ public class FontPanel extends JPanel {
             fc.setFileFilter(ttfFilter);
 
             fc.setAcceptAllFileFilterUsed(false);
-            JFrame fr = new JFrame();
-            View.setWindowIcon(fr);
-            int returnVal = fc.showOpenDialog(fr);
+            int returnVal = fc.showOpenDialog(Main.getDefaultMessagesComponent());
             if (returnVal == JFileChooser.APPROVE_OPTION) {
                 Configuration.lastOpenDir.set(Helper.fixDialogFile(fc.getSelectedFile()).getParentFile().getAbsolutePath());
                 File selfile = Helper.fixDialogFile(fc.getSelectedFile());
@@ -667,21 +814,30 @@ public class FontPanel extends JPanel {
         }
     }
 
-    private JButton buttonCancel;
+    public void startEdit() {
+        if (!editButton.isVisible()) {
+            return;
+        }
+        editButtonActionPerformed(null);
+    }
 
-    private JButton buttonEdit;
+    private JButton cancelButton;
 
-    private JButton buttonPreviewFont;
+    private JButton editButton;
 
-    private JButton buttonSetAdvanceValues;
+    private JButton previewFontButton;
 
-    private JButton buttonSave;
+    private JButton setAdvanceValuesButton;
+
+    private JButton saveButton;
 
     private JTextField fontAddCharactersField;
 
     private JButton fontAddCharsButton;
 
     private JButton fontRemoveCharsButton;
+
+    private JTextField fontAscentTextField;
 
     private JLabel fontAscentLabel;
 
@@ -693,6 +849,8 @@ public class FontPanel extends JPanel {
 
     private JLabel fontDescentLabel;
 
+    private JTextField fontDescentTextField;
+
     private JTextArea fontNameTextArea;
 
     private JButton fontEmbedButton;
@@ -702,6 +860,10 @@ public class FontPanel extends JPanel {
     private JCheckBox fontIsItalicCheckBox;
 
     private JLabel fontLeadingLabel;
+
+    private JTextField fontLeadingTextField;
+
+    private JTextField fontNameIntagTextField;
 
     private JLabel fontNameIntagLabel;
 
@@ -718,4 +880,13 @@ public class FontPanel extends JPanel {
     private JPanel contentPanel;
 
     private JScrollPane contentScrollPane;
+
+    @Override
+    public boolean tryAutoSave() {
+        if (Configuration.autoSaveTagModifications.get()) {
+            saveButtonActionPerformed(null);
+            return !(saveButton.isVisible() && saveButton.isEnabled());
+        }
+        return false;
+    }
 }

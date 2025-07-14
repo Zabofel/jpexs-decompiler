@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.xfl;
 
 import com.jpexs.helpers.Helper;
@@ -26,7 +27,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 
 /**
- *
+ * XFL XML writer.
  * @author JPEXS
  */
 public class XFLXmlWriter implements XMLStreamWriter {
@@ -132,6 +133,11 @@ public class XFLXmlWriter implements XMLStreamWriter {
         newLineNeeded = false;
     }
 
+    private void writeEmptyElementInternal(String prefix, String localName, String namespaceURI) throws XMLStreamException {
+        writeStartElement(prefix, localName, namespaceURI);
+        writeEndElement();
+    }
+
     @Override
     public void writeEmptyElement(String namespaceURI, String localName) throws XMLStreamException {
         writeEmptyElementInternal(getPrefix(namespaceURI), localName, namespaceURI);
@@ -141,11 +147,6 @@ public class XFLXmlWriter implements XMLStreamWriter {
     public void writeEmptyElement(String prefix, String localName, String namespaceURI) throws XMLStreamException {
         setPrefix(prefix, namespaceURI);
         writeEmptyElementInternal(prefix, localName, namespaceURI);
-    }
-
-    private void writeEmptyElementInternal(String prefix, String localName, String namespaceURI) throws XMLStreamException {
-        writeStartElement(prefix, localName, namespaceURI);
-        writeEndElement();
     }
 
     @Override
@@ -176,6 +177,12 @@ public class XFLXmlWriter implements XMLStreamWriter {
         newLineNeeded = true;
     }
 
+    public void writeElementValueRaw(String localName, String value) throws XMLStreamException {
+        writeStartElement(localName);
+        writeCharactersRaw(value);
+        writeEndElement();
+    }
+
     public void writeElementValue(String localName, String value) throws XMLStreamException {
         writeStartElement(localName);
         writeCharacters(value);
@@ -196,12 +203,6 @@ public class XFLXmlWriter implements XMLStreamWriter {
 
     public void writeElementValue(String localName, long value) throws XMLStreamException {
         writeElementValue(localName, Long.toString(value));
-    }
-
-    public void writeElementValueRaw(String localName, String value) throws XMLStreamException {
-        writeStartElement(localName);
-        writeCharactersRaw(value);
-        writeEndElement();
     }
 
     public void writeElementValue(String localName, String value, String[] attributes) throws XMLStreamException {
@@ -290,7 +291,7 @@ public class XFLXmlWriter implements XMLStreamWriter {
     @Override
     public void writeCData(String data) throws XMLStreamException {
         closeStartElement();
-        // todo: split when data cintains "]]>"
+        // todo: split when data contains "]]>"
         append("<![CDATA[").append(data).append("]]>");
     }
 
@@ -304,25 +305,28 @@ public class XFLXmlWriter implements XMLStreamWriter {
 
     @Override
     public void writeStartDocument() throws XMLStreamException {
+        writeStartDocument("utf-8", "1.0");
     }
 
     @Override
     public void writeStartDocument(String version) throws XMLStreamException {
+        writeStartDocument(version, "utf-8");
     }
 
     @Override
     public void writeStartDocument(String encoding, String version) throws XMLStreamException {
+        append("<?xml version=\"" + escapeAttribute(version) + "\" encoding=\"" + escapeAttribute(encoding) + "\"?>");
+    }
+
+    public void writeCharactersRaw(String text) throws XMLStreamException {
+        closeStartElement();
+        append(text);
     }
 
     @Override
     public void writeCharacters(String text) throws XMLStreamException {
         closeStartElement();
         append(escapeText(text));
-    }
-
-    public void writeCharactersRaw(String text) throws XMLStreamException {
-        closeStartElement();
-        append(text);
     }
 
     @Override

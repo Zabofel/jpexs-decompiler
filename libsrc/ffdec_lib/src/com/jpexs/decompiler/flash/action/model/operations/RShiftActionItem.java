@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,10 +12,13 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.model.operations;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
+import com.jpexs.decompiler.flash.action.ActionGraphTargetDialect;
+import com.jpexs.decompiler.flash.action.model.CompoundableBinaryOpAs12;
 import com.jpexs.decompiler.flash.action.swf5.ActionBitRShift;
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.graph.CompilationException;
@@ -24,16 +27,25 @@ import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.SourceGenerator;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.BinaryOpItem;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Bitwise right shift.
  *
  * @author JPEXS
  */
-public class RShiftActionItem extends BinaryOpItem {
+public class RShiftActionItem extends BinaryOpItem implements CompoundableBinaryOpAs12 {
 
+    /**
+     * Constructor.
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param leftSide Left side
+     * @param rightSide Right side
+     */
     public RShiftActionItem(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem leftSide, GraphTargetItem rightSide) {
-        super(instruction, lineStartIns, PRECEDENCE_BITWISESHIFT, leftSide, rightSide, ">>", "int", "int");
+        super(ActionGraphTargetDialect.INSTANCE, instruction, lineStartIns, PRECEDENCE_BITWISESHIFT, leftSide, rightSide, ">>", "int", "int");
     }
 
     @Override
@@ -41,6 +53,12 @@ public class RShiftActionItem extends BinaryOpItem {
         return getResult(rightSide.getResult(), leftSide.getResult());
     }
 
+    /**
+     * Gets result.
+     * @param rightResult Right result
+     * @param leftResult Left result
+     * @return Result
+     */
     public static long getResult(Object rightResult, Object leftResult) {
         long rightResult2 = EcmaScript.toInt32(rightResult) & 0x1f;
         return EcmaScript.toInt32(leftResult) >> rightResult2;
@@ -54,5 +72,12 @@ public class RShiftActionItem extends BinaryOpItem {
     @Override
     public GraphTargetItem returnType() {
         return TypeItem.UNBOUNDED;
+    }
+
+    @Override
+    public List<GraphSourceItem> getOperatorInstruction() {
+        List<GraphSourceItem> ret = new ArrayList<>();
+        ret.add(new ActionBitRShift());
+        return ret;
     }
 }

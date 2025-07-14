@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS
+ *  Copyright (C) 2010-2025 JPEXS
  * 
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@ package com.jpexs.process;
 
 import com.jpexs.helpers.ProgressListener;
 import com.jpexs.helpers.Searchable;
+import com.jpexs.process.Process;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.Map;
 
 /**
- *
  * @author JPEXS
  */
 public interface Process extends Comparable<Process>, Searchable {

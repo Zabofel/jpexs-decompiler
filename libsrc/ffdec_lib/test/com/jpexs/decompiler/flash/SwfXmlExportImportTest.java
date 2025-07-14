@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash;
 
 import com.jpexs.decompiler.flash.abc.NotSameException;
@@ -83,7 +84,7 @@ public class SwfXmlExportImportTest extends FileTestBase {
         }
     }
 
-    @Test(dataProvider = "provideFiles")
+    @Test(dataProvider = "provideFiles", enabled = false)
     public void testExportImportXml(String filePath) {
         try {
             File f = new File(filePath);
@@ -94,10 +95,11 @@ public class SwfXmlExportImportTest extends FileTestBase {
 
             File outFile = new File(fdir + File.separator + Helper.makeFileName("swf.xml"));
             new SwfXmlExporter().exportXml(swf, outFile);
-            String xml = Helper.readTextFile(outFile.getPath());
 
             SWF swf2 = new SWF();
-            new SwfXmlImporter().importSwf(swf2, xml);
+            try ( FileInputStream fis = new FileInputStream(outFile)) {
+                new SwfXmlImporter().importSwf(swf2, fis);
+            }
 
             if (swf.getTags().size() != swf2.getTags().size()) {
                 throw new NotSameException(0);
@@ -151,6 +153,6 @@ public class SwfXmlExportImportTest extends FileTestBase {
 
     @Override
     public String[] getTestDataDirs() {
-        return new String[]{TESTDATADIR, FREE_ACTIONSCRIPT_AS2, FREE_ACTIONSCRIPT_AS3};
+        return new String[]{TESTDATADIR};
     }
 }

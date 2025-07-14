@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,9 +17,10 @@
 package com.jpexs.helpers;
 
 /**
+ * Reference to an object. Used for passing objects by reference.
  *
+ * @param <T> Type of the object
  * @author JPEXS
- * @param <T>
  */
 public class Reference<T> {
 

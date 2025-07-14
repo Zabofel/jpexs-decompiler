@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.action.parser.script;
 
 import com.jpexs.decompiler.flash.SourceGeneratorLocalData;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Variable action item.
  *
  * @author JPEXS
  */
@@ -39,6 +41,11 @@ public class VariableActionItem extends ActionItem {
     private GraphTargetItem storeValue;
 
     private boolean definition;
+    
+    /**
+     * Position in code
+     */
+    private int position = -1;
 
     public void setDefinition(boolean definition) {
         this.definition = definition;
@@ -57,6 +64,14 @@ public class VariableActionItem extends ActionItem {
         this.storeValue = storeValue;
         this.definition = definition;
     }
+
+    public void setPosition(int position) {
+        this.position = position;
+    }    
+
+    public int getPosition() {
+        return position;
+    }        
 
     public boolean isDefinition() {
         return definition;
@@ -97,7 +112,7 @@ public class VariableActionItem extends ActionItem {
     public List<GraphSourceItem> toSourceIgnoreReturnValue(SourceGeneratorLocalData localData, SourceGenerator generator) throws CompilationException {
         if (it == null) {
             return new ArrayList<>();
-        }
+        }        
         return it.toSourceIgnoreReturnValue(localData, generator);
     }
 

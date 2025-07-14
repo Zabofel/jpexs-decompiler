@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,13 +12,15 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.model;
 
 import com.jpexs.decompiler.flash.ecma.EcmaScript;
 import com.jpexs.decompiler.flash.helpers.GraphTextWriter;
 import com.jpexs.decompiler.graph.GraphSourceItem;
 import com.jpexs.decompiler.graph.GraphTargetItem;
+import com.jpexs.decompiler.graph.GraphTargetVisitorInterface;
 import com.jpexs.decompiler.graph.TypeItem;
 import com.jpexs.decompiler.graph.model.Callable;
 import com.jpexs.decompiler.graph.model.LocalData;
@@ -26,21 +28,32 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
+ * Call function.
  *
  * @author JPEXS
  */
 public class CallAVM2Item extends AVM2Item {
 
+    /**
+     * Receiver.
+     */
     public GraphTargetItem receiver;
 
+    /**
+     * Function.
+     */
     public GraphTargetItem function;
 
+    /**
+     * Arguments.
+     */
     public List<GraphTargetItem> arguments;
 
-    private static abstract class Func implements Callable {
+    private abstract static class Func implements Callable {
 
         @Override
         public Object call(String methodName, List<Object> args) {
@@ -135,11 +148,27 @@ public class CallAVM2Item extends AVM2Item {
         });
     }
 
+    /**
+     * Constructor.
+     *
+     * @param instruction Instruction
+     * @param lineStartIns Line start instruction
+     * @param receiver Receiver
+     * @param function Function
+     * @param arguments Arguments
+     */
     public CallAVM2Item(GraphSourceItem instruction, GraphSourceItem lineStartIns, GraphTargetItem receiver, GraphTargetItem function, List<GraphTargetItem> arguments) {
         super(instruction, lineStartIns, PRECEDENCE_PRIMARY);
         this.receiver = receiver;
         this.function = function;
         this.arguments = arguments;
+    }
+
+    @Override
+    public void visit(GraphTargetVisitorInterface visitor) {
+        visitor.visit(receiver);
+        visitor.visit(function);
+        visitor.visitAll(arguments);
     }
 
     @Override
@@ -196,18 +225,18 @@ public class CallAVM2Item extends AVM2Item {
          if (receiver instanceof ThisAVM2Item) {
          recPart = "";
          }*/
-        if (function.getPrecedence() > precedence) {
+        if (function.getPrecedence() > precedence || (function instanceof NewFunctionAVM2Item)) {
             writer.append("(");
             function.toString(writer, localData);
             writer.append(")");
         } else {
             function.toString(writer, localData);
         }
-        writer.spaceBeforeCallParenthesies(arguments.size());
+        writer.spaceBeforeCallParenthesis(arguments.size());
         writer.append("(");
         for (int a = 0; a < arguments.size(); a++) {
             if (a > 0) {
-                writer.append(",");
+                writer.allowWrapHere().append(",");
             }
             arguments.get(a).toString(writer, localData);
         }
@@ -216,6 +245,12 @@ public class CallAVM2Item extends AVM2Item {
 
     @Override
     public GraphTargetItem returnType() {
+        if (function instanceof GetPropertyAVM2Item) {
+            return ((GetPropertyAVM2Item) function).callType;
+        }
+        if (function instanceof GetLexAVM2Item) {
+            return ((GetLexAVM2Item) function).callType;
+        }
         return TypeItem.UNBOUNDED;
     }
 
@@ -223,4 +258,43 @@ public class CallAVM2Item extends AVM2Item {
     public boolean hasReturnValue() {
         return true;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 97 * hash + Objects.hashCode(this.receiver);
+        hash = 97 * hash + Objects.hashCode(this.function);
+        hash = 97 * hash + Objects.hashCode(this.arguments);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final CallAVM2Item other = (CallAVM2Item) obj;
+        if (!Objects.equals(this.receiver, other.receiver)) {
+            return false;
+        }
+        if (!Objects.equals(this.function, other.function)) {
+            return false;
+        }
+        if (!Objects.equals(this.arguments, other.arguments)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean hasSideEffect() {
+        return true;
+    }
+
 }

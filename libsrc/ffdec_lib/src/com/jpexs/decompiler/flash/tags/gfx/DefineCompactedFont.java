@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,17 +12,16 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.gfx;
 
 import com.jpexs.decompiler.flash.SWF;
 import com.jpexs.decompiler.flash.SWFInputStream;
 import com.jpexs.decompiler.flash.SWFOutputStream;
+import com.jpexs.decompiler.flash.gfx.GfxConvertor;
 import com.jpexs.decompiler.flash.helpers.FontHelper;
-import com.jpexs.decompiler.flash.tags.DefineFont2Tag;
 import com.jpexs.decompiler.flash.tags.base.FontTag;
-import com.jpexs.decompiler.flash.types.KERNINGRECORD;
-import com.jpexs.decompiler.flash.types.LANGCODE;
 import com.jpexs.decompiler.flash.types.RECT;
 import com.jpexs.decompiler.flash.types.SHAPE;
 import com.jpexs.decompiler.flash.types.gfx.FontType;
@@ -45,6 +44,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
+ * DefineCompactedFont tag - defines a font with compacted shapes.
  *
  * @author JPEXS
  */
@@ -64,7 +64,7 @@ public final class DefineCompactedFont extends FontTag {
      * Gets data bytes
      *
      * @param sos SWF output stream
-     * @throws java.io.IOException
+     * @throws IOException On I/O error
      */
     @Override
     public void getData(SWFOutputStream sos) throws IOException {
@@ -77,7 +77,7 @@ public final class DefineCompactedFont extends FontTag {
     /**
      * Constructor
      *
-     * @param swf
+     * @param swf SWF
      */
     public DefineCompactedFont(SWF swf) {
         super(swf, ID, NAME, null);
@@ -93,9 +93,9 @@ public final class DefineCompactedFont extends FontTag {
     /**
      * Constructor
      *
-     * @param sis
-     * @param data
-     * @throws IOException
+     * @param sis SWF input stream
+     * @param data Data
+     * @throws IOException On I/O error
      */
     public DefineCompactedFont(SWFInputStream sis, ByteArrayRange data) throws IOException {
         super(sis.getSwf(), ID, NAME, data);
@@ -128,14 +128,7 @@ public final class DefineCompactedFont extends FontTag {
 
     @Override
     public String getFontNameIntag() {
-        StringBuilder ret = new StringBuilder();
-        for (int i = 0; i < fonts.size(); i++) {
-            if (i > 0) {
-                ret.append(", ");
-            }
-            ret.append(fonts.get(i).fontName);
-        }
-        return ret.toString();
+        return fonts.get(0).fontName;
     }
 
     @Override
@@ -154,7 +147,7 @@ public final class DefineCompactedFont extends FontTag {
     }
 
     @Override
-    public void addCharacter(char character, Font cfont) {
+    public boolean addCharacter(char character, Font cfont) {
         int fontStyle = getFontStyle();
         FontType font = fonts.get(0);
 
@@ -193,8 +186,36 @@ public final class DefineCompactedFont extends FontTag {
             shapeCache.set(pos, font.glyphs.get(pos).toSHAPE());
         }
 
+        for (int k = 0; k < font.kerning.size(); k++) {
+            if (font.kerning.get(k).char1 == character
+                    || font.kerning.get(k).char2 == character) {
+                font.kerning.remove(k);
+                k--;
+            }
+        }
+        List<FontHelper.KerningPair> kerning = getFontKerningPairs(cfont, (int) (getDivider() * 1024));
+        for (FontHelper.KerningPair pair : kerning) {
+            if (pair.char1 != character && pair.char2 != character) {
+                continue;
+            }
+            int glyph1 = charToGlyph(pair.char1);
+            if (pair.char1 == character) {
+                //empty
+            } else if (glyph1 == -1) {
+                continue;
+            }
+            int glyph2 = charToGlyph(pair.char2);
+            if (pair.char2 == character) {
+                //empty
+            } else if (glyph2 == -1) {
+                continue;
+            }
+            font.kerning.add(new KerningPairType(pair.char1, pair.char2, pair.kerning));
+        }
+
         setModified(true);
         getSwf().clearImageCache();
+        return true;
     }
 
     @Override
@@ -221,6 +242,15 @@ public final class DefineCompactedFont extends FontTag {
         font.glyphInfo.remove(pos);
         font.glyphs.remove(pos);
         shapeCache.remove(pos);
+
+        for (int k = 0; k < font.kerning.size(); k++) {
+            if (font.kerning.get(k).char1 == character
+                    || font.kerning.get(k).char2 == character) {
+                font.kerning.remove(k);
+                k--;
+            }
+        }
+
         shiftGlyphIndices(fontId, pos + 1, false);
 
         setModified(true);
@@ -273,7 +303,7 @@ public final class DefineCompactedFont extends FontTag {
 
     @Override
     public int getGlyphWidth(int glyphIndex) {
-        return resize(getGlyphShapeTable().get(glyphIndex).getBounds().getWidth());
+        return resize(getGlyphShapeTable().get(glyphIndex).getBounds(1).getWidth());
     }
 
     @Override
@@ -397,6 +427,7 @@ public final class DefineCompactedFont extends FontTag {
                 StraightEdgeRecord ser = (StraightEdgeRecord) c;
                 ser.deltaX = resize(ser.deltaX);
                 ser.deltaY = resize(ser.deltaY);
+                ser.simplify();
                 ser.calculateBits();
             }
             recs.add(c);
@@ -405,54 +436,72 @@ public final class DefineCompactedFont extends FontTag {
         return ret;
     }
 
-    protected int resize(double val) {
+    public int resize(double val) {
         FontType ft = fonts.get(0);
         return (int) Math.round(val * 1024.0 / ft.nominalSize);
     }
 
     @Override
     public FontTag toClassicFont() {
-        DefineFont2Tag ret = new DefineFont2Tag(swf);
-        ret.fontID = getFontId();
-        ret.fontFlagsBold = isBold();
-        ret.fontFlagsItalic = isItalic();
-        ret.fontFlagsWideOffsets = true;
-        ret.fontFlagsWideCodes = true;
-        ret.fontFlagsHasLayout = true;
-        ret.fontAscent = resize(getAscent());
-        ret.fontDescent = resize(getDescent());
-        ret.fontLeading = resize(getLeading());
-        ret.fontAdvanceTable = new ArrayList<>();
-        ret.fontBoundsTable = new ArrayList<>();
-        ret.codeTable = new ArrayList<>();
-        ret.glyphShapeTable = new ArrayList<>();
-        List<SHAPE> shp = getGlyphShapeTable();
-        for (int g = 0; g < shp.size(); g++) {
-            ret.fontAdvanceTable.add((int) getGlyphAdvance(g)); //already resized
-            ret.codeTable.add((int) glyphToChar(g));
-
-            SHAPE shpX = resizeShape(shp.get(g));
-            ret.glyphShapeTable.add(shpX);
-            ret.fontBoundsTable.add(getGlyphBounds(g));
-        }
-        ret.fontName = getFontNameIntag();
-        ret.languageCode = new LANGCODE(1);
-        ret.fontKerningTable = new ArrayList<>();
-
-        FontType ft = fonts.get(0);
-        for (int i = 0; i < ft.kerning.size(); i++) {
-            KERNINGRECORD kr = new KERNINGRECORD();
-            kr.fontKerningAdjustment = resize(ft.kerning.get(i).advance);
-            kr.fontKerningCode1 = ft.kerning.get(i).char1;
-            kr.fontKerningCode2 = ft.kerning.get(i).char2;
-            ret.fontKerningTable.add(kr);
-        }
-
-        return ret;
+        return new GfxConvertor().convertDefineCompactedFont(this);
     }
 
     @Override
     public boolean hasLayout() {
         return true;
+    }
+
+    @Override
+    public void setAscent(int ascent) {
+        fonts.get(0).ascent = ascent;
+    }
+
+    @Override
+    public void setDescent(int descent) {
+        fonts.get(0).descent = descent;
+    }
+
+    @Override
+    public void setLeading(int leading) {
+        fonts.get(0).leading = leading;
+    }
+
+    @Override
+    public void setHasLayout(boolean hasLayout) {
+    }
+
+    @Override
+    public void setFontNameIntag(String name) {
+        fonts.get(0).fontName = name;
+    }
+
+    @Override
+    public boolean isFontNameInTagEditable() {
+        return true;
+    }
+
+    @Override
+    public boolean isAscentEditable() {
+        return true;
+    }
+
+    @Override
+    public boolean isDescentEditable() {
+        return true;
+    }
+
+    @Override
+    public boolean isLeadingEditable() {
+        return true;
+    }
+
+    @Override
+    public RECT getRectWithStrokes() {
+        return getRect();
+    }
+
+    @Override
+    public String getCodesCharset() {
+        return getCharset();
     }
 }

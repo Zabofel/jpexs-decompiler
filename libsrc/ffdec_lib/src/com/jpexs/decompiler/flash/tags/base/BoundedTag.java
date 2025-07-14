@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,19 +12,39 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.tags.base;
 
 import com.jpexs.decompiler.flash.types.RECT;
 import java.util.Set;
 
 /**
+ * An object which has bounds - rectangle.
  *
  * @author JPEXS
  */
 public interface BoundedTag {
 
+    /**
+     * Gets rectangle bounds.
+     *
+     * @return Rectangle bounds
+     */
     public RECT getRect();
 
+    /**
+     * Gets rectangle bounds with added boundedTags
+     *
+     * @param added Bounded tags to add
+     * @return Rectangle bounds
+     */
     public RECT getRect(Set<BoundedTag> added);
+
+    /**
+     * Gets rectangle including strokes.
+     *
+     * @return Rectangle including strokes
+     */
+    public RECT getRectWithStrokes();
 }

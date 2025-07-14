@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,7 +12,8 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.abc.avm2.instructions.localregs;
 
 import com.jpexs.decompiler.flash.abc.ABC;
@@ -21,7 +22,6 @@ import com.jpexs.decompiler.flash.abc.avm2.AVM2ConstantPool;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.AVM2Instruction;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.InstructionDefinition;
 import com.jpexs.decompiler.flash.abc.avm2.instructions.SetTypeIns;
-import com.jpexs.decompiler.flash.abc.avm2.model.AVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.DecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.FindPropertyAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.IncrementAVM2Item;
@@ -30,23 +30,30 @@ import com.jpexs.decompiler.flash.abc.avm2.model.NewActivationAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.PostDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.PostIncrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.SetLocalAVM2Item;
+import com.jpexs.decompiler.flash.abc.avm2.model.StoreNewActivationAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreDecrementAVM2Item;
 import com.jpexs.decompiler.flash.abc.avm2.model.operations.PreIncrementAVM2Item;
-import com.jpexs.decompiler.flash.abc.types.MethodBody;
-import com.jpexs.decompiler.graph.DottedChain;
 import com.jpexs.decompiler.graph.GraphTargetItem;
 import com.jpexs.decompiler.graph.TranslateStack;
+import com.jpexs.decompiler.graph.model.CompoundableBinaryOp;
+import com.jpexs.decompiler.graph.model.DuplicateItem;
 import com.jpexs.decompiler.graph.model.PopItem;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Stack;
 
 /**
+ * setlocal type instruction - set local register value.
  *
  * @author JPEXS
  */
 public abstract class SetLocalTypeIns extends InstructionDefinition implements SetTypeIns {
 
+    /**
+     * Constructor
+     * @param instructionCode Instruction code
+     * @param instructionName Instruction name
+     * @param operands Operands
+     * @param canThrow Can throw exception
+     */
     public SetLocalTypeIns(int instructionCode, String instructionName, int[] operands, boolean canThrow) {
         super(instructionCode, instructionName, operands, canThrow);
     }
@@ -61,6 +68,7 @@ public abstract class SetLocalTypeIns extends InstructionDefinition implements S
     public void translate(AVM2LocalData localData, TranslateStack stack, AVM2Instruction ins, List<GraphTargetItem> output, String path) {
         int regId = getRegisterId(ins);
         GraphTargetItem value = stack.pop();
+
         /*if (localRegs.containsKey(regId)) {
          localRegs.put(regId, new NotCompileTimeAVM2Item(ins, localData.lineStartInstruction, value));
          } else {
@@ -75,6 +83,7 @@ public abstract class SetLocalTypeIns extends InstructionDefinition implements S
         localData.localRegAssignmentIps.put(regId, localData.localRegAssignmentIps.get(regId) + 1);
         //localRegsAssignmentIps.put(regId, ip);
         if (value.getThroughDuplicate() instanceof NewActivationAVM2Item) {
+            output.add(new StoreNewActivationAVM2Item(ins, localData.lineStartInstruction, regId));
             return;
         }
         if (value instanceof FindPropertyAVM2Item) {
@@ -126,19 +135,28 @@ public abstract class SetLocalTypeIns extends InstructionDefinition implements S
             }
         }
 
-        //if(val.startsWith("catchscope ")) return;
-        //if(val.startsWith("newactivation()")) return;
-        output.add(new SetLocalAVM2Item(ins, localData.lineStartInstruction, regId, value));
+        SetLocalAVM2Item result = new SetLocalAVM2Item(ins, localData.lineStartInstruction, regId, value, value.returnType());
+        if (value.getNotCoerced() instanceof CompoundableBinaryOp) {
+            CompoundableBinaryOp binaryOp = (CompoundableBinaryOp) value.getNotCoerced();
+            if (binaryOp.getLeftSide().getNotCoerced() instanceof LocalRegAVM2Item) {
+                LocalRegAVM2Item loc = (LocalRegAVM2Item) binaryOp.getLeftSide().getNotCoerced();
+                if (loc.regIndex == regId) {
+                    result.setCompoundValue(binaryOp.getRightSide());
+                    result.setCompoundOperator(binaryOp.getOperator());
+                }
+            }
+        }
+        
+        if (value instanceof DuplicateItem) {
+            result.directlyCausedByDup = true;
+        }
+
+        SetTypeIns.handleResult(value, stack, output, localData, result, regId, value.returnType());
     }
 
     @Override
     public int getStackPopCount(AVM2Instruction ins, ABC abc) {
         return 1;
-    }
-
-    @Override
-    public String getObject(Stack<AVM2Item> stack, ABC abc, AVM2Instruction ins, List<AVM2Item> output, MethodBody body, HashMap<Integer, String> localRegNames, List<DottedChain> fullyQualifiedNames) {
-        return AVM2Item.localRegName(localRegNames, getRegisterId(ins));
     }
 
     public abstract int getRegisterId(AVM2Instruction ins);

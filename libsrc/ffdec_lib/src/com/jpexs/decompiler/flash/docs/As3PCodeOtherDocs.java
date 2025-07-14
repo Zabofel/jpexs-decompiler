@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2010-2018 JPEXS, All rights reserved.
+ *  Copyright (C) 2010-2025 JPEXS, All rights reserved.
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -12,25 +12,19 @@
  * Lesser General Public License for more details.
  * 
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library. */
+ * License along with this library.
+ */
 package com.jpexs.decompiler.flash.docs;
 
 import com.jpexs.decompiler.flash.ApplicationInfo;
-import static com.jpexs.decompiler.flash.docs.As3PCodeDocs.NEWLINE;
-import com.jpexs.helpers.Cache;
 import com.jpexs.helpers.Helper;
-import com.jpexs.helpers.utf8.Utf8Helper;
-import java.io.InputStream;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.Locale;
 import java.util.ResourceBundle;
-import java.util.TimeZone;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+/**
+ * AS3 PCode other documentation.
+ */
 public class As3PCodeOtherDocs extends AbstractDocs {
 
     static ResourceBundle prop;
@@ -40,12 +34,25 @@ public class As3PCodeOtherDocs extends AbstractDocs {
         prop = ResourceBundle.getBundle("com.jpexs.decompiler.flash.locales.docs.pcode.AS3other");
     }
 
-    public static String getDocsForPath(String path) {
+    /**
+     * Constructor.
+     */
+    public As3PCodeOtherDocs() {
 
-        return getDocsForPath(path, true);
     }
 
-    private static String getDocsForPath(String path, boolean standalone) {
+    /**
+     * Gets documentation for path.
+     * @param path Path
+     * @param nightMode Night mode
+     * @return Documentation
+     */
+    public static String getDocsForPath(String path, boolean nightMode) {
+
+        return getDocsForPath(path, true, nightMode);
+    }
+
+    private static String getDocsForPath(String path, boolean standalone, boolean nightMode) {
 
         final String cacheKey = path + "|" + (standalone ? 1 : 0);
         String v = docsCache.get(cacheKey);
@@ -63,12 +70,18 @@ public class As3PCodeOtherDocs extends AbstractDocs {
             sb.append(htmlHeader("", getStyle()));
         }
 
-        sb.append("<");
-        sb.append(standalone ? "body" : "div");
-        sb.append(" class=\"otherdoc\"");
-        sb.append(">");
+        if (standalone) {
+            sb.append("<body class=\"");
+            if (nightMode) {
+                sb.append("standalonenight");
+            } else {
+                sb.append("standalone");
+            }
+            sb.append("\">");
+        }
+        sb.append("<div class=\"otherdoc\">");
 
-        String pathParts[] = new String[]{path};
+        String[] pathParts = new String[]{path};
         if (path.contains(".")) {
             pathParts = path.split("\\.");
         }
@@ -76,6 +89,9 @@ public class As3PCodeOtherDocs extends AbstractDocs {
             String curPath = String.join(".", Arrays.copyOf(pathParts, i + 1));
             if (curPath.startsWith("trait.method")) {
                 curPath = path.substring("trait.".length());
+            }
+            if (curPath.startsWith("method.body.trait.")) {
+                curPath = path.substring("method.body.".length());
             }
             if (prop.containsKey(curPath)) {
                 String docStr = prop.getString(curPath);
@@ -95,10 +111,9 @@ public class As3PCodeOtherDocs extends AbstractDocs {
             }
         }
 
-        sb.append("</");
-        sb.append(standalone ? "body" : "div"); //.instruction
-        sb.append(">").append(NEWLINE);
+        sb.append("</div>").append(NEWLINE); //.instruction        
         if (standalone) {
+            sb.append("</body>");
             sb.append(htmlFooter());
         }
         String r = sb.toString();
@@ -106,30 +121,41 @@ public class As3PCodeOtherDocs extends AbstractDocs {
         return r;
     }
 
+    /**
+     * Gets HTML header.
+     * @param js JavaScript
+     * @param style Style
+     * @return HTML header
+     */
     protected static String htmlHeader(String js, String style) {
         Date dateGenerated = new Date();
         StringBuilder sb = new StringBuilder();
-        sb.append("<!DOCTYPE html>").append(NEWLINE).
-                append("<html>").append(NEWLINE).
-                append("\t<head>").append(NEWLINE);
+        sb.append("<!DOCTYPE html>").append(NEWLINE)
+                .append("<html>").append(NEWLINE)
+                .append("\t<head>").append(NEWLINE);
         if (style != null && !style.isEmpty()) {
             sb.append("\t\t<style>").append(style).append("</style>").append(NEWLINE);
         }
         if (js != null && !js.isEmpty()) {
             sb.append("\t\t<script>").append(js).append("</script>").append(NEWLINE);
         }
-        sb.append("\t\t<meta charset=\"UTF-8\">").append(NEWLINE).
-                append(meta("generator", ApplicationInfo.applicationVerName)).
-                append(meta("description", getProperty("ui.list.pageDescription"))).
-                append(metaProp("og:title", getProperty("ui.list.pageTitle"))).
-                append(metaProp("og:type", "article")).
-                append(metaProp("og:description", getProperty("ui.list.pageDescription"))).
-                append(meta("date", dateGenerated)).
-                append("\t\t<title>").append(getProperty("ui.list.documentTitle")).append("</title>").append(NEWLINE).
-                append("\t</head>").append(NEWLINE);
+        sb.append("\t\t<meta charset=\"UTF-8\">").append(NEWLINE)
+                .append(meta("generator", ApplicationInfo.applicationVerName))
+                .append(meta("description", getProperty("ui.list.pageDescription")))
+                .append(metaProp("og:title", getProperty("ui.list.pageTitle")))
+                .append(metaProp("og:type", "article"))
+                .append(metaProp("og:description", getProperty("ui.list.pageDescription")))
+                .append(meta("date", dateGenerated))
+                .append("\t\t<title>").append(getProperty("ui.list.documentTitle")).append("</title>").append(NEWLINE)
+                .append("\t</head>").append(NEWLINE);
         return sb.toString();
     }
 
+    /**
+     * Gets property.
+     * @param name Name
+     * @return Property
+     */
     protected static String getProperty(String name) {
         if (prop.containsKey(name)) {
             return Helper.escapeHTML(prop.getString(name));
